@@ -138,6 +138,19 @@ make lint          # golangci-lint
 make format        # goimports + prettier
 ```
 
+Tests et locale (snapshots)
+---------------------------
+- Les tests UI peuvent être sensibles à la locale du système (format de date), ce qui provoque des échecs de snapshot si votre machine est configurée en `fr_FR` par exemple.
+- Pour exécuter les tests JS de façon déterministe, préfixez la commande avec une locale `en_US` : 
+```fish
+# dans le repo racine
+LANG=en_US.UTF-8 make test-js
+# ou depuis `ui/`:
+LANG=en_US.UTF-8 npm test --prefix ui
+```
+- J'ai aussi ajouté une modification aux scripts npm (`ui/package.json`) pour forcer `LANG=en_US.UTF-8` lors de l'exécution de `npm test`/`vitest` afin d'éviter ces diffs sur les snapshots.
+- Si vous préférez conserver les snapshots en français, il est possible de mettre à jour les snapshots en local (vitest --updateSnapshot), mais cela casse la portabilité entre machines avec des locales différentes.
+
 Notes importantes
 -----------------
 - Ports : UI = `4533`, backend = `PORT + 100` (p.ex. backend 4633 si UI 4533).
