@@ -15,7 +15,9 @@ import (
 	_ "github.com/navidrome/navidrome/core/agents/deezer"
 	_ "github.com/navidrome/navidrome/core/agents/lastfm"
 	_ "github.com/navidrome/navidrome/core/agents/listenbrainz"
+	_ "github.com/navidrome/navidrome/core/agents/lrclib"
 	_ "github.com/navidrome/navidrome/core/agents/spotify"
+	_ "github.com/navidrome/navidrome/core/agents/syrics"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/utils"
@@ -40,6 +42,7 @@ type Provider interface {
 	TopSongs(ctx context.Context, artist string, count int) (model.MediaFiles, error)
 	ArtistImage(ctx context.Context, id string) (*url.URL, error)
 	AlbumImage(ctx context.Context, id string) (*url.URL, error)
+	GetLyrics(ctx context.Context, artist, title string) (*model.Lyrics, error)
 }
 
 type provider struct {
@@ -68,6 +71,7 @@ type Agents interface {
 	agents.ArtistSimilarRetriever
 	agents.ArtistTopSongsRetriever
 	agents.ArtistURLRetriever
+	agents.LyricsRetriever
 }
 
 func NewProvider(ds model.DataStore, agents Agents) Provider {
@@ -374,6 +378,10 @@ func (e *provider) AlbumImage(ctx context.Context, id string) (*url.URL, error) 
 		return nil, model.ErrNotFound
 	}
 	return url.Parse(img.URL)
+}
+
+func (e *provider) GetLyrics(ctx context.Context, artist, title string) (*model.Lyrics, error) {
+	return e.ag.GetLyrics(ctx, artist, title)
 }
 
 func (e *provider) TopSongs(ctx context.Context, artistName string, count int) (model.MediaFiles, error) {

@@ -5,6 +5,7 @@ import { GlobalHotKeys } from 'react-hotkeys'
 import IconButton from '@material-ui/core/IconButton'
 import { useMediaQuery } from '@material-ui/core'
 import { RiSaveLine } from 'react-icons/ri'
+import { MdLyrics } from 'react-icons/md'
 import { LoveButton, useToggleLove } from '../common'
 import { openSaveQueueDialog } from '../actions'
 import { keyMap } from '../hotkeys'
@@ -89,6 +90,21 @@ const PlayerToolbar = ({ id, isRadio }) => {
     </IconButton>
   )
 
+  const lyricsButton = (
+    <IconButton
+      size={isDesktop ? 'small' : undefined}
+      onClick={() => {
+        if (!id || isRadio) return
+        window.location.href = `#/lyrics?trackId=${id}`
+      }}
+      disabled={!id || isRadio}
+      data-testid="lyrics-button"
+      className={buttonClass}
+    >
+      <MdLyrics className={!isDesktop ? classes.mobileIcon : undefined} />
+    </IconButton>
+  )
+
   const loveButton = (
     <LoveButton
       record={data}
@@ -105,11 +121,13 @@ const PlayerToolbar = ({ id, isRadio }) => {
       {isDesktop ? (
         <li className={`${listItemClass} item`}>
           {saveQueueButton}
+          {lyricsButton}
           {loveButton}
         </li>
       ) : (
         <>
           <li className={`${listItemClass} item`}>{saveQueueButton}</li>
+          <li className={`${listItemClass} item`}>{lyricsButton}</li>
           <li className={`${listItemClass} item`}>{loveButton}</li>
         </>
       )}

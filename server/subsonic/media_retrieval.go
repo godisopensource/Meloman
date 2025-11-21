@@ -95,6 +95,9 @@ func (api *Router) GetLyrics(r *http.Request) (*responses.Subsonic, error) {
 	p := req.Params(r)
 	artist, _ := p.String("artist")
 	title, _ := p.String("title")
+
+	log.Debug(r.Context(), "GetLyrics called", "artist", artist, "title", title)
+
 	response := newResponse()
 	lyricsResponse := responses.Lyrics{}
 	response.Lyrics = &lyricsResponse
@@ -104,13 +107,20 @@ func (api *Router) GetLyrics(r *http.Request) (*responses.Subsonic, error) {
 		return nil, err
 	}
 
+	var structuredLyrics model.LyricList
 	if len(mediaFiles) == 0 {
-		return response, nil
-	}
-
-	structuredLyrics, err := lyrics.GetLyrics(r.Context(), &mediaFiles[0])
-	if err != nil {
-		return nil, err
+		// If no media file found, try to fetch lyrics directly using the provider
+		l, err := api.provider.GetLyrics(r.Context(), artist, title)
+		if err == nil && l != nil {
+			structuredLyrics = model.LyricList{*l}
+		} else {
+			return response, nil
+		}
+	} else {
+		structuredLyrics, err = lyrics.GetLyrics(r.Context(), &mediaFiles[0], api.provider)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(structuredLyrics) == 0 {
@@ -136,12 +146,14 @@ func (api *Router) GetLyricsBySongId(r *http.Request) (*responses.Subsonic, erro
 		return nil, err
 	}
 
+	log.Info(r.Context(), "GetLyricsBySongId called", "id", id)
+
 	mediaFile, err := api.ds.MediaFile(r.Context()).Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	structuredLyrics, err := lyrics.GetLyrics(r.Context(), mediaFile)
+	structuredLyrics, err := lyrics.GetLyrics(r.Context(), mediaFile, api.provider)
 	if err != nil {
 		return nil, err
 	}

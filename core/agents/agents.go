@@ -121,6 +121,36 @@ func (a *Agents) AgentName() string {
 	return "agents"
 }
 
+func (a *Agents) GetLyrics(ctx context.Context, artist, title string) (*model.Lyrics, error) {
+	start := time.Now()
+	log.Info(ctx, "AGENTS: GetLyrics START", "artist", artist, "title", title, "enabledAgents", a.getEnabledAgentNames())
+	for _, enabledAgent := range a.getEnabledAgentNames() {
+		log.Info(ctx, "AGENTS: Trying agent", "agent", enabledAgent)
+		ag := a.getAgent(enabledAgent)
+		if ag == nil {
+			log.Info(ctx, "AGENTS: Agent is nil", "agent", enabledAgent)
+			continue
+		}
+		if utils.IsCtxDone(ctx) {
+			break
+		}
+		retriever, ok := ag.(LyricsRetriever)
+		if !ok {
+			log.Info(ctx, "AGENTS: Agent does not implement LyricsRetriever", "agent", enabledAgent)
+			continue
+		}
+		log.Info(ctx, "AGENTS: Calling agent GetLyrics", "agent", ag.AgentName())
+		lyrics, err := retriever.GetLyrics(ctx, artist, title)
+		log.Info(ctx, "AGENTS: Agent returned", "agent", ag.AgentName(), "hasLyrics", lyrics != nil, "err", err)
+		if lyrics != nil && err == nil {
+			log.Debug(ctx, "Got Lyrics", "agent", ag.AgentName(), "artist", artist, "title", title, "elapsed", time.Since(start))
+			return lyrics, nil
+		}
+	}
+	log.Info(ctx, "AGENTS: No agent returned lyrics, returning ErrNotFound")
+	return nil, ErrNotFound
+}
+
 func (a *Agents) GetArtistMBID(ctx context.Context, id string, name string) (string, error) {
 	switch id {
 	case consts.UnknownArtistID:

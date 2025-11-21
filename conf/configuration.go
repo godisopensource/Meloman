@@ -100,6 +100,7 @@ type configOptions struct {
 	Subsonic                        subsonicOptions     `json:",omitzero"`
 	LastFM                          lastfmOptions       `json:",omitzero"`
 	Spotify                         spotifyOptions      `json:",omitzero"`
+	Syrics                          syricsOptions       `json:",omitzero"`
 	Deezer                          deezerOptions       `json:",omitzero"`
 	ListenBrainz                    listenBrainzOptions `json:",omitzero"`
 	Tags                            map[string]TagConf  `json:",omitempty"`
@@ -172,6 +173,11 @@ type lastfmOptions struct {
 type spotifyOptions struct {
 	ID     string
 	Secret string
+}
+
+type syricsOptions struct {
+	Enabled bool
+	SpDc    string
 }
 
 type deezerOptions struct {
@@ -512,7 +518,7 @@ func setViperDefaults() {
 	viper.SetDefault("coverartpriority", "cover.*, folder.*, front.*, embedded, external")
 	viper.SetDefault("coverjpegquality", 75)
 	viper.SetDefault("artistartpriority", "artist.*, album/artist.*, external")
-	viper.SetDefault("lyricspriority", ".lrc,.txt,embedded")
+	viper.SetDefault("lyricspriority", ".lrc,.txt,embedded,agent")
 	viper.SetDefault("enablegravatar", false)
 	viper.SetDefault("enablefavourites", true)
 	viper.SetDefault("enablestarrating", true)
@@ -556,7 +562,7 @@ func setViperDefaults() {
 	viper.SetDefault("subsonic.artistparticipations", false)
 	viper.SetDefault("subsonic.defaultreportrealpath", false)
 	viper.SetDefault("subsonic.legacyclients", "DSub")
-	viper.SetDefault("agents", "lastfm,spotify,deezer")
+	viper.SetDefault("agents", "lastfm,spotify,deezer,syrics")
 	viper.SetDefault("lastfm.enabled", true)
 	viper.SetDefault("lastfm.language", "en")
 	viper.SetDefault("lastfm.apikey", "")
@@ -564,6 +570,8 @@ func setViperDefaults() {
 	viper.SetDefault("lastfm.scrobblefirstartistonly", false)
 	viper.SetDefault("spotify.id", "")
 	viper.SetDefault("spotify.secret", "")
+	viper.SetDefault("syrics.enabled", false)
+	viper.SetDefault("syrics.spdc", "")
 	viper.SetDefault("deezer.enabled", true)
 	viper.SetDefault("listenbrainz.enabled", true)
 	viper.SetDefault("listenbrainz.baseurl", "https://api.listenbrainz.org/1/")

@@ -10,6 +10,7 @@ import {
   PLAYER_SET_VOLUME,
   PLAYER_SYNC_QUEUE,
   PLAYER_SET_MODE,
+  PLAYER_UPDATE_LYRICS,
 } from '../actions'
 import config from '../config'
 
@@ -67,6 +68,7 @@ const mapToAudioLists = (item) => {
       }
     }
   }
+  // Note: If no embedded lyrics, they will be fetched asynchronously via fetchAndUpdateLyrics action
 
   return {
     trackId,
@@ -166,12 +168,33 @@ const reduceSyncQueue = (state, { data: { audioInfo, audioLists } }) => {
 }
 
 const reduceCurrent = (state, { data }) => {
-  const current = data.ended ? {} : data
-  const savedPlayIndex = state.queue.findIndex(
+  let current = data.ended ? {} : data
+  
+  // Force ReactJkMusicPlayer to reload by regenerating UUIDs and clearing lyrics
+  const clearedQueue = state.queue.map((item) => {
+    if (item.uuid === current.uuid) {
+      // Current track: keep it as-is (preserve lyrics if present)
+      return item
+    }
+    // Other tracks: generate new UUID and clear lyrics
+    // This forces ReactJkMusicPlayer to treat them as "new" items
+    return { ...item, uuid: uuidv4(), lyric: '' }
+  })
+  
+  // If switching to a track, check if it already has lyrics in the queue
+  if (current.uuid) {
+    const queueItem = clearedQueue.find((item) => item.uuid === current.uuid)
+    if (queueItem?.lyric && !current.lyric) {
+      current = { ...current, lyric: queueItem.lyric }
+    }
+  }
+  
+  const savedPlayIndex = clearedQueue.findIndex(
     (item) => item.uuid === current.uuid,
   )
   return {
     ...state,
+    queue: clearedQueue,
     current,
     playIndex: undefined,
     savedPlayIndex,
@@ -183,6 +206,26 @@ const reduceMode = (state, { data: { mode } }) => {
   return {
     ...state,
     mode,
+  }
+}
+
+const reduceUpdateLyrics = (state, { data: { trackId, lyrics } }) => {
+  const updatedQueue = state.queue.map((item) => {
+    if (item.trackId === trackId) {
+      return { ...item, lyric: lyrics }
+    }
+    return item
+  })
+  
+  // Also update current if it matches the trackId
+  const updatedCurrent = state.current?.trackId === trackId
+    ? { ...state.current, lyric: lyrics }
+    : state.current
+  
+  return {
+    ...state,
+    queue: updatedQueue,
+    current: updatedCurrent,
   }
 }
 
@@ -207,6 +250,8 @@ export const playerReducer = (previousState = initialState, payload) => {
       return reduceCurrent(previousState, payload)
     case PLAYER_SET_MODE:
       return reduceMode(previousState, payload)
+    case PLAYER_UPDATE_LYRICS:
+      return reduceUpdateLyrics(previousState, payload)
     default:
       return previousState
   }

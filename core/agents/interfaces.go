@@ -50,6 +50,11 @@ type AlbumImageRetriever interface {
 	GetAlbumImages(ctx context.Context, name, artist, mbid string) ([]ExternalImage, error)
 }
 
+// LyricsRetriever provides lyrics
+type LyricsRetriever interface {
+	GetLyrics(ctx context.Context, artist, title string) (*model.Lyrics, error)
+}
+
 type ArtistMBIDRetriever interface {
 	GetArtistMBID(ctx context.Context, id string, name string) (string, error)
 }

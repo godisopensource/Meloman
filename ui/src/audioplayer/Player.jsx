@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useMediaQuery } from '@material-ui/core'
 import { ThemeProvider } from '@material-ui/core/styles'
@@ -22,6 +22,7 @@ import {
   setPlayMode,
   setVolume,
   syncQueue,
+  updateTrackLyrics,
 } from '../actions'
 import PlayerToolbar from './PlayerToolbar'
 import { sendNotification } from '../utils'
@@ -95,6 +96,66 @@ const Player = () => {
     }
   }, [audioInstance, context, gainNode, playerState, gainInfo])
 
+
+  // Fetch lyrics when a track without embedded lyrics starts playing
+  const lastFetchedTrackRef = useRef(null)
+
+  useEffect(() => {
+    const current = playerState.current || {}
+    const currentTrackId = current.trackId
+    const currentUuid = current.uuid
+
+    if (!currentTrackId || !currentUuid || current.isRadio) {
+      return
+    }
+
+    // If we've already fetched lyrics for this exact track, skip
+    if (lastFetchedTrackRef.current === currentTrackId) {
+      return
+    }
+
+    // If current already has lyrics (and it's not empty), mark as fetched and skip
+    if (current.lyric && current.lyric !== '') {
+      lastFetchedTrackRef.current = currentTrackId
+      return
+    }
+
+    const pad = (value) => {
+      const str = value.toString()
+      return str.length === 1 ? `0${str}` : str
+    }
+
+    subsonic.getLyricsBySongId(currentTrackId)
+      .then((response) => {
+        const structured = response?.json?.['subsonic-response']?.lyricsList?.structuredLyrics
+        if (!structured) return
+
+        const syncedLyric = structured.find((sl) =>
+          (sl.synced === true || sl.synced === 'true') && Array.isArray(sl.line) && sl.line.length > 0,
+        )
+
+        if (!syncedLyric) return
+
+        let lyricText = ''
+        for (const line of syncedLyric.line) {
+          let time = Math.floor(line.start / 10)
+          const ms = time % 100
+          time = Math.floor(time / 100)
+          const sec = time % 60
+          time = Math.floor(time / 60)
+          const min = time % 60
+
+          lyricText += `[${pad(min)}:${pad(sec)}.${pad(ms)}] ${line.value}\n`
+        }
+
+        lastFetchedTrackRef.current = currentTrackId
+        dispatch(updateTrackLyrics(currentTrackId, lyricText))
+      })
+      .catch(() => {
+        // Silently ignore lyrics fetch errors
+      })
+  }, [playerState.current?.uuid, playerState.current?.trackId, dispatch])
+
   const defaultOptions = useMemo(
     () => ({
       theme: playerTheme,
@@ -106,7 +167,7 @@ const Player = () => {
       clearPriorAudioLists: false,
       showDestroy: true,
       showDownload: false,
-      showLyric: true,
+      showLyric: false,
       showReload: false,
       toggleMode: !isDesktop,
       glassBg: false,
@@ -134,9 +195,10 @@ const Player = () => {
 
   const options = useMemo(() => {
     const current = playerState.current || {}
+    
     return {
       ...defaultOptions,
-      audioLists: playerState.queue.map((item) => item),
+      audioLists: playerState.queue,
       playIndex: playerState.playIndex,
       autoPlay: playerState.clear || playerState.playIndex === 0,
       clearPriorAudioLists: playerState.clear,
@@ -145,6 +207,7 @@ const Player = () => {
       ),
       defaultVolume: isMobilePlayer ? 1 : playerState.volume,
       showMediaSession: !current.isRadio,
+      showLyric: true,
     }
   }, [playerState, defaultOptions, isMobilePlayer])
 

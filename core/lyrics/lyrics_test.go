@@ -72,7 +72,7 @@ var _ = Describe("sources", func() {
 
 	DescribeTable("Lyrics Priority", func(priority string, expected model.LyricList) {
 		conf.Server.LyricsPriority = priority
-		list, err := lyrics.GetLyrics(ctx, &mf)
+		list, err := lyrics.GetLyrics(ctx, &mf, nil)
 		Expect(err).To(BeNil())
 		Expect(list).To(Equal(expected))
 	},
@@ -107,7 +107,7 @@ var _ = Describe("sources", func() {
 			It("should fallback to embedded if an error happens when parsing file", func() {
 				conf.Server.LyricsPriority = ".mp3,embedded"
 
-				list, err := lyrics.GetLyrics(ctx, &mf)
+				list, err := lyrics.GetLyrics(ctx, &mf, nil)
 				Expect(err).To(BeNil())
 				Expect(list).To(Equal(embeddedLyrics))
 			})
@@ -115,7 +115,7 @@ var _ = Describe("sources", func() {
 			It("should return nothing if error happens when trying to parse file", func() {
 				conf.Server.LyricsPriority = ".mp3"
 
-				list, err := lyrics.GetLyrics(ctx, &mf)
+				list, err := lyrics.GetLyrics(ctx, &mf, nil)
 				Expect(err).To(BeNil())
 				Expect(list).To(BeEmpty())
 			})
