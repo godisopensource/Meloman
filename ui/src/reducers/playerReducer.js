@@ -169,7 +169,7 @@ const reduceSyncQueue = (state, { data: { audioInfo, audioLists } }) => {
 
 const reduceCurrent = (state, { data }) => {
   let current = data.ended ? {} : data
-  
+
   // Force ReactJkMusicPlayer to reload by regenerating UUIDs and clearing lyrics
   const clearedQueue = state.queue.map((item) => {
     if (item.uuid === current.uuid) {
@@ -180,7 +180,7 @@ const reduceCurrent = (state, { data }) => {
     // This forces ReactJkMusicPlayer to treat them as "new" items
     return { ...item, uuid: uuidv4(), lyric: '' }
   })
-  
+
   // If switching to a track, check if it already has lyrics in the queue
   if (current.uuid) {
     const queueItem = clearedQueue.find((item) => item.uuid === current.uuid)
@@ -188,7 +188,7 @@ const reduceCurrent = (state, { data }) => {
       current = { ...current, lyric: queueItem.lyric }
     }
   }
-  
+
   const savedPlayIndex = clearedQueue.findIndex(
     (item) => item.uuid === current.uuid,
   )
@@ -216,12 +216,13 @@ const reduceUpdateLyrics = (state, { data: { trackId, lyrics } }) => {
     }
     return item
   })
-  
+
   // Also update current if it matches the trackId
-  const updatedCurrent = state.current?.trackId === trackId
-    ? { ...state.current, lyric: lyrics }
-    : state.current
-  
+  const updatedCurrent =
+    state.current?.trackId === trackId
+      ? { ...state.current, lyric: lyrics }
+      : state.current
+
   return {
     ...state,
     queue: updatedQueue,

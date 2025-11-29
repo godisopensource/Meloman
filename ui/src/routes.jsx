@@ -5,12 +5,7 @@ import LyricsPage from './lyrics/LyricsPage'
 
 const routes = [
   <Route exact path="/personal" render={() => <Personal />} key={'personal'} />,
-  <Route
-    exact
-    path="/lyrics"
-    render={() => <LyricsPage />}
-    key={'lyrics'}
-  />,
+  <Route exact path="/lyrics" render={() => <LyricsPage />} key={'lyrics'} />,
 ]
 
 export default routes

@@ -21,7 +21,8 @@ const LyricsPage = () => {
   const current = playerState.current || {}
   const trackId = trackIdFromQuery || current.trackId
 
-  const queueItem = playerState.queue.find((item) => item.trackId === trackId) || {}
+  const queueItem =
+    playerState.queue.find((item) => item.trackId === trackId) || {}
   const lyric = queueItem.lyric || current.lyric || ''
   const song = queueItem.song || current.song || {}
 

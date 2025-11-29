@@ -96,7 +96,6 @@ const Player = () => {
     }
   }, [audioInstance, context, gainNode, playerState, gainInfo])
 
-
   // Fetch lyrics when a track without embedded lyrics starts playing
   const lastFetchedTrackRef = useRef(null)
 
@@ -125,13 +124,18 @@ const Player = () => {
       return str.length === 1 ? `0${str}` : str
     }
 
-    subsonic.getLyricsBySongId(currentTrackId)
+    subsonic
+      .getLyricsBySongId(currentTrackId)
       .then((response) => {
-        const structured = response?.json?.['subsonic-response']?.lyricsList?.structuredLyrics
+        const structured =
+          response?.json?.['subsonic-response']?.lyricsList?.structuredLyrics
         if (!structured) return
 
-        const syncedLyric = structured.find((sl) =>
-          (sl.synced === true || sl.synced === 'true') && Array.isArray(sl.line) && sl.line.length > 0,
+        const syncedLyric = structured.find(
+          (sl) =>
+            (sl.synced === true || sl.synced === 'true') &&
+            Array.isArray(sl.line) &&
+            sl.line.length > 0,
         )
 
         if (!syncedLyric) return
@@ -195,7 +199,7 @@ const Player = () => {
 
   const options = useMemo(() => {
     const current = playerState.current || {}
-    
+
     return {
       ...defaultOptions,
       audioLists: playerState.queue,
