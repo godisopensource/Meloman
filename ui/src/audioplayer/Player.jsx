@@ -158,6 +158,7 @@ const Player = () => {
       .catch(() => {
         // Silently ignore lyrics fetch errors
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerState.current?.uuid, playerState.current?.trackId, dispatch])
 
   const defaultOptions = useMemo(
