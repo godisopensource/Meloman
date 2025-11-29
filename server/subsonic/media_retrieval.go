@@ -110,9 +110,13 @@ func (api *Router) GetLyrics(r *http.Request) (*responses.Subsonic, error) {
 	var structuredLyrics model.LyricList
 	if len(mediaFiles) == 0 {
 		// If no media file found, try to fetch lyrics directly using the provider
-		l, err := api.provider.GetLyrics(r.Context(), artist, title)
-		if err == nil && l != nil {
-			structuredLyrics = model.LyricList{*l}
+		if api.provider != nil {
+			l, err := api.provider.GetLyrics(r.Context(), artist, title)
+			if err == nil && l != nil {
+				structuredLyrics = model.LyricList{*l}
+			} else {
+				return response, nil
+			}
 		} else {
 			return response, nil
 		}
