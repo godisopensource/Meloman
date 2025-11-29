@@ -18,7 +18,7 @@ import (
 
 const (
 	syricsAgentName = "syrics"
-	tokenURL        = "https://open.spotify.com/get_access_token?reason=transport&productType=web_player"
+	tokenURL        = "https://open.spotify.com/get_access_token?reason=transport&productType=web_player" // #nosec G101 - This is a public API URL, not a credential
 	searchURL       = "https://api.spotify.com/v1/search"
 	lyricsURL       = "https://spclient.wg.spotify.com/color-lyrics/v2/track/%s"
 )
@@ -220,7 +220,7 @@ func (s *syricsAgent) fetchLyrics(ctx context.Context, trackID string) (*model.L
 
 	for _, line := range result.Lyrics.Lines {
 		var start int64
-		fmt.Sscanf(line.StartTimeMs, "%d", &start)
+		_, _ = fmt.Sscanf(line.StartTimeMs, "%d", &start) // Error ignored - zero value is acceptable fallback
 		lyrics.Line = append(lyrics.Line, model.Line{
 			Start: &start,
 			Value: line.Words,

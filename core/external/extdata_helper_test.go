@@ -194,9 +194,10 @@ type mockAgents struct {
 		agents.AlbumInfoRetriever
 		agents.AlbumImageRetriever
 	}
-	bioAgent  agents.ArtistBiographyRetriever
-	mbidAgent agents.ArtistMBIDRetriever
-	urlAgent  agents.ArtistURLRetriever
+	bioAgent    agents.ArtistBiographyRetriever
+	mbidAgent   agents.ArtistMBIDRetriever
+	urlAgent    agents.ArtistURLRetriever
+	lyricsAgent agents.LyricsRetriever
 	agents.Interface
 }
 
@@ -279,6 +280,17 @@ func (m *mockAgents) GetAlbumImages(ctx context.Context, name, artist, mbid stri
 	args := m.Called(ctx, name, artist, mbid)
 	if args.Get(0) != nil {
 		return args.Get(0).([]agents.ExternalImage), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockAgents) GetLyrics(ctx context.Context, artist, title string) (*model.Lyrics, error) {
+	if m.lyricsAgent != nil {
+		return m.lyricsAgent.GetLyrics(ctx, artist, title)
+	}
+	args := m.Called(ctx, artist, title)
+	if args.Get(0) != nil {
+		return args.Get(0).(*model.Lyrics), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
