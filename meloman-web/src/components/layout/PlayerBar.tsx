@@ -5,8 +5,10 @@ import { usePlayer } from "@/contexts/PlayerContext"
 import { useQueue } from "@/contexts/QueueContext"
 import { subsonicApi } from "@/lib/subsonic-api"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { QueueDrawer } from "@/components/queue/QueueDrawer"
 import { motion } from "motion/react"
+import { ArtistLinks } from "@/components/common/ArtistLinks"
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -18,6 +20,18 @@ export function PlayerBar() {
   const { currentTrack, isPlaying, currentTime, duration, volume, togglePlayPause, seek, setVolume, skipNext, skipPrevious } = usePlayer()
   const { shuffle, repeat, toggleShuffle, setRepeat } = useQueue()
   const [queueOpen, setQueueOpen] = useState(false)
+  const navigate = useNavigate()
+  
+  const handleTrackNameClick = async () => {
+    if (!currentTrack?.album) return
+    try {
+      const albums = await subsonicApi.search(currentTrack.album)
+      const found = albums.albums?.find((a: any) => a.name === currentTrack.album)
+      if (found) navigate(`/albums/${found.id}`)
+    } catch (err) {
+      console.error('Failed to find album:', err)
+    }
+  }
 
   const handleProgressChange = (value: number[]) => {
     seek(value[0])
@@ -48,8 +62,16 @@ export function PlayerBar() {
               )}
             </motion.div>
             <div className="min-w-0">
-              <div className={`text-sm font-bold truncate hover:underline cursor-pointer transition-colors ${isPlaying ? 'accent-text' : 'text-white'}`}>{currentTrack.title}</div>
-                <div className="text-xs text-gray-400 truncate cursor-pointer transition-colors hover:underline">{currentTrack.artist}</div>
+              <div 
+                className={`text-sm font-bold truncate hover:underline cursor-pointer transition-colors ${isPlaying ? 'accent-text' : 'text-white'}`}
+                onClick={handleTrackNameClick}
+              >
+                {currentTrack.title}
+              </div>
+              <ArtistLinks 
+                artistString={currentTrack.artist} 
+                className="text-xs text-gray-400 truncate"
+              />
             </div>
           </>
         ) : (

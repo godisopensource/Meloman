@@ -37,8 +37,22 @@ export function Sidebar() {
               key={item.path}
               variant="ghost"
               onClick={() => navigate(item.path)}
-              className="w-full justify-start transition-colors hover:bg-gray-800"
-              style={isActive(item.path) ? { color: 'var(--accent-color, #3b82f6)' } : { color: '#d1d5db' }}
+              className="w-full justify-start transition-all duration-200"
+              style={
+                isActive(item.path) 
+                  ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.1)' } 
+                  : { color: '#d1d5db' }
+              }
+              onMouseEnter={(e) => {
+                if (!isActive(item.path)) {
+                  e.currentTarget.style.backgroundColor = 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.05)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive(item.path)) {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                }
+              }}
             >
               <item.icon className="mr-3 h-5 w-5" />
               {item.label}
@@ -56,8 +70,22 @@ export function Sidebar() {
                 key={item.path}
                 variant="ghost"
                 onClick={() => navigate(item.path)}
-                className="w-full justify-start transition-colors hover:bg-gray-800"
-                style={isActive(item.path) ? { color: 'var(--accent-color, #3b82f6)' } : { color: '#d1d5db' }}
+                className="w-full justify-start transition-all duration-200"
+                style={
+                  isActive(item.path) 
+                    ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.1)' } 
+                    : { color: '#d1d5db' }
+                }
+                onMouseEnter={(e) => {
+                  if (!isActive(item.path)) {
+                    e.currentTarget.style.backgroundColor = 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.05)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive(item.path)) {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }
+                }}
               >
                 <item.icon className="mr-3 h-5 w-5" />
                 {item.label}

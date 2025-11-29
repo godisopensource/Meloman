@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Play, Clock, ArrowLeft } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -7,6 +7,8 @@ import { subsonicApi } from "@/lib/subsonic-api"
 import { usePlayer } from "@/contexts/PlayerContext"
 import { useQueue } from '@/contexts/QueueContext'
 import { motion } from "motion/react"
+import { FullScreenLoader } from "@/components/ui/loader"
+import { ArtistLinks } from "@/components/common/ArtistLinks"
 
 interface Song {
   id: string
@@ -42,9 +44,11 @@ export function AlbumDetailView() {
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadingRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (id) {
+    if (id && loadingRef.current !== id) {
+      loadingRef.current = id
       loadAlbum(id)
     }
   }, [id])
@@ -53,6 +57,31 @@ export function AlbumDetailView() {
     try {
       setLoading(true)
       const data = await subsonicApi.getAlbum(albumId)
+      
+      // Deduplicate songs by title+artist (ignore ID differences from backend)
+      if (data.song && Array.isArray(data.song)) {
+        const originalLength = data.song.length
+        const seenCompositeKeys = new Set<string>()
+        const uniqueSongs: Song[] = []
+        
+        for (const song of data.song) {
+          // Use ONLY title+artist for deduplication (ignore ID differences)
+          const titleArtistKey = `${(song.title || '').toLowerCase().trim()}::${(song.artist || '').toLowerCase().trim()}`
+          
+          if (!seenCompositeKeys.has(titleArtistKey)) {
+            seenCompositeKeys.add(titleArtistKey)
+            uniqueSongs.push(song)
+          } else {
+            console.debug('[AlbumDetailView] Skipping duplicate:', song.title, 'by', song.artist)
+          }
+        }
+        
+        if (originalLength !== uniqueSongs.length) {
+          console.log('[AlbumDetailView] Removed', originalLength - uniqueSongs.length, 'duplicate(s)')
+        }
+        data.song = uniqueSongs
+      }
+      
       setAlbum(data)
       setError(null)
     } catch (err: any) {
@@ -101,11 +130,7 @@ export function AlbumDetailView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading album...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading album..." />
   }
 
   if (error || !album) {
@@ -180,11 +205,19 @@ export function AlbumDetailView() {
               </motion.div>
             </div>
               <div className="flex items-center gap-2 text-gray-300">
-              <span className="font-semibold hover:underline cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); navigateToArtist(album.artist) }}>{album.artist}</span>
+              <ArtistLinks artistString={album.artist} className="font-semibold transition-colors" />
               {album.year && (
                 <>
                   <span>•</span>
-                  <span>{album.year}</span>
+                  <button
+                    className="hover:text-white hover:underline cursor-pointer transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/albums?year=${album.year}`)
+                    }}
+                  >
+                    {album.year}
+                  </button>
                 </>
               )}
               {album.song && (
@@ -211,7 +244,7 @@ export function AlbumDetailView() {
             const isPlaying = currentTrack?.id === song.id
             return (
             <motion.div
-              key={song.id}
+              key={`${song.id}-${index}`}
               className={`grid grid-cols-[40px_40px_1fr_1fr_120px] gap-4 px-4 py-3 rounded-lg hover:bg-gray-800 group cursor-pointer ${isPlaying ? 'playing-border bg-gray-800/50' : ''}`}
               onClick={() => handlePlaySong(song, index)}
               whileHover={{ x: 4 }}
@@ -227,7 +260,10 @@ export function AlbumDetailView() {
                 <span className={`truncate ${isPlaying ? 'accent-text font-semibold' : 'text-white'}`}>{song.title}</span>
               </div>
               <div className="flex items-center min-w-0">
-                <span className="text-gray-400 truncate hover:underline cursor-pointer" style={isPlaying ? { color: 'var(--accent-color, #9ca3af)' } : undefined} onClick={(e) => { e.stopPropagation(); navigateToArtist(song.artist) }}>{song.artist}</span>
+                <ArtistLinks 
+                  artistString={song.artist} 
+                  className="text-gray-400 truncate"
+                />
               </div>
               <div className="flex items-center justify-end gap-2">
                 <div className="flex items-center gap-2">

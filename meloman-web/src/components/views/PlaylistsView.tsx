@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Music2 } from "lucide-react"
+import { Music2, ListMusic } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { subsonicApi } from "@/lib/subsonic-api"
+import { FullScreenLoader } from "@/components/ui/loader"
 
 interface Playlist {
   id: string
@@ -48,11 +49,7 @@ export function PlaylistsView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading playlists...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading playlists..." />
   }
 
   if (error) {

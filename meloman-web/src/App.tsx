@@ -1,8 +1,10 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { QueueProvider } from "@/contexts/QueueContext"
 import { PlayerProvider } from "@/contexts/PlayerContext"
 import { MainLayout } from "@/components/layout/MainLayout"
+import { AnimatePresence } from "motion/react"
+import { PageTransition } from "@/components/common/PageTransition"
 import { HomeView } from "@/components/views/HomeView"
 import { AlbumsView } from "@/components/views/AlbumsView"
 import { AlbumDetailView } from "@/components/views/AlbumDetailView"
@@ -12,10 +14,12 @@ import { SongsView } from "@/components/views/SongsView"
 import { PlaylistsView } from "@/components/views/PlaylistsView"
 import { PlaylistDetailView } from "@/components/views/PlaylistDetailView"
 import { SearchView } from "@/components/views/SearchView"
+import { SearchResultsView } from "@/components/views/SearchResultsView"
 import { LoginView } from "@/components/views/LoginView"
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth()
+  const location = useLocation()
 
   if (!isAuthenticated) {
     return <LoginView />
@@ -25,17 +29,20 @@ function ProtectedRoutes() {
     <QueueProvider>
       <PlayerProvider>
         <MainLayout>
-          <Routes>
-            <Route path="/" element={<HomeView />} />
-            <Route path="/albums" element={<AlbumsView />} />
-            <Route path="/albums/:id" element={<AlbumDetailView />} />
-            <Route path="/artists" element={<ArtistsView />} />
-            <Route path="/artists/:id" element={<ArtistDetailView />} />
-            <Route path="/songs" element={<SongsView />} />
-            <Route path="/playlists" element={<PlaylistsView />} />
-            <Route path="/playlists/:id" element={<PlaylistDetailView />} />
-            <Route path="/search" element={<SearchView />} />
-          </Routes>
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<PageTransition><HomeView /></PageTransition>} />
+              <Route path="/albums" element={<PageTransition><AlbumsView /></PageTransition>} />
+              <Route path="/albums/:id" element={<PageTransition><AlbumDetailView /></PageTransition>} />
+              <Route path="/artists" element={<PageTransition><ArtistsView /></PageTransition>} />
+              <Route path="/artists/:id" element={<PageTransition><ArtistDetailView /></PageTransition>} />
+              <Route path="/songs" element={<PageTransition><SongsView /></PageTransition>} />
+              <Route path="/playlists" element={<PageTransition><PlaylistsView /></PageTransition>} />
+              <Route path="/playlists/:id" element={<PageTransition><PlaylistDetailView /></PageTransition>} />
+              <Route path="/search" element={<PageTransition><SearchView /></PageTransition>} />
+              <Route path="/search/results" element={<PageTransition><SearchResultsView /></PageTransition>} />
+            </Routes>
+          </AnimatePresence>
         </MainLayout>
       </PlayerProvider>
     </QueueProvider>

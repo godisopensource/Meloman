@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react"
-import { Play } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Play, X } from "lucide-react"
 import { useQueue } from '@/contexts/QueueContext'
 import { usePlayer } from '@/contexts/PlayerContext'
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { subsonicApi } from "@/lib/subsonic-api"
+import { saveScrollPosition, getScrollPosition } from "@/lib/scrollRestoration"
 import { motion } from "motion/react"
+import { FullScreenLoader } from "@/components/ui/loader"
 
 interface Album {
   id: string
@@ -17,14 +19,33 @@ interface Album {
 
 export function AlbumsView() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const yearParam = searchParams.get('year')
   const { setQueue } = useQueue()
   const { play, currentTrack } = usePlayer()
   const [albums, setAlbums] = useState<Album[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadAlbums()
+    // Restore scroll position
+    const savedPosition = getScrollPosition('albums-list')
+    if (savedPosition && scrollRef.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ top: savedPosition })
+      }, 100)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Save scroll position when unmounting
+    return () => {
+      if (scrollRef.current) {
+        saveScrollPosition('albums-list', scrollRef.current.scrollTop)
+      }
+    }
   }, [])
 
   const loadAlbums = async () => {
@@ -45,7 +66,12 @@ export function AlbumsView() {
       }
       const unique = Array.from(seen.values())
       console.debug('[AlbumsView] deduped albums', { before: data.length, after: unique.length })
-      setAlbums(unique)
+      
+      // Apply year filter if present
+      const filtered = yearParam ? unique.filter(a => a.year?.toString() === yearParam) : unique
+      console.debug('[AlbumsView] year filter', { yearParam, before: unique.length, after: filtered.length })
+      
+      setAlbums(filtered)
       setError(null)
     } catch (err: any) {
       setError(err.message || "Failed to load albums")
@@ -55,6 +81,9 @@ export function AlbumsView() {
   }
 
   const handleAlbumClick = (albumId: string) => {
+    if (scrollRef.current) {
+      saveScrollPosition('albums-list', scrollRef.current.scrollTop)
+    }
     navigate(`/albums/${albumId}`)
   }
 
@@ -88,11 +117,7 @@ export function AlbumsView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading albums...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading albums..." />
   }
 
   if (error) {
@@ -106,7 +131,20 @@ export function AlbumsView() {
   return (
     <ScrollArea className="h-full">
       <div className="p-8">
-        <h1 className="text-4xl font-bold mb-8">Albums</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-4xl font-bold">Albums</h1>
+          {yearParam && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
+              <span className="text-sm text-gray-300">Year: {yearParam}</span>
+              <button 
+                onClick={() => setSearchParams({})}
+                className="hover:bg-gray-700 p-1 rounded"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {albums.map((album) => {
             const isPlaying = currentTrack?.album === album.name
@@ -117,6 +155,7 @@ export function AlbumsView() {
               onClick={() => handleAlbumClick(album.id)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.98 }}
+              style={{ pointerEvents: 'auto' }}
             >
               <div className={`relative aspect-square bg-gray-800 rounded-xl mb-4 overflow-hidden shadow-lg ${isPlaying ? 'playing-border' : ''}`}>
                 {album.coverArt ? (
@@ -143,7 +182,19 @@ export function AlbumsView() {
               </div>
               <h3 className={`font-semibold truncate ${isPlaying ? 'accent-text' : 'text-white'}`} style={!isPlaying ? { color: undefined } : undefined}>{album.name}</h3>
               <p className="text-sm text-gray-400 truncate hover:underline cursor-pointer" style={isPlaying ? { color: 'var(--accent-color, #9ca3af)' } : undefined} onClick={(e) => { e.stopPropagation(); navigateToArtist(album.artist) }}>{album.artist}</p>
-              {album.year && <p className="text-xs text-gray-500">{album.year}</p>}
+              {album.year && (
+                <button 
+                  className="text-xs text-gray-500 hover:text-gray-300 cursor-pointer hover:underline transition-colors relative z-10"
+                  style={{ pointerEvents: 'auto' }}
+                  onClick={(e) => { 
+                    e.preventDefault()
+                    e.stopPropagation()
+                    navigate(`/albums?year=${album.year}`) 
+                  }}
+                >
+                  {album.year}
+                </button>
+              )}
             </motion.div>
             )
           })}

@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { ReactNode } from "react"
 import { Sidebar } from "./Sidebar"
 import { PlayerBar } from "./PlayerBar"
 import { LyricsPanel } from "@/components/lyrics/LyricsPanel"
+import { QuickSearch } from "@/components/common/QuickSearch"
 import { Button } from "@/components/ui/button"
 import { Mic2, Maximize2 } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
@@ -14,6 +15,24 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [showLyrics, setShowLyrics] = useState(false)
   const [fullscreenLyrics, setFullscreenLyrics] = useState(false)
+  const [accentColorRgb, setAccentColorRgb] = useState('59, 130, 246')
+
+  // Watch for accent color changes
+  useEffect(() => {
+    const updateAccentColor = () => {
+      const rgb = getComputedStyle(document.documentElement).getPropertyValue('--accent-color-rgb').trim()
+      if (rgb && rgb !== accentColorRgb) {
+        setAccentColorRgb(rgb)
+      }
+    }
+    
+    // Initial update
+    updateAccentColor()
+    
+    // Poll for changes (CSS variables don't trigger events)
+    const interval = setInterval(updateAccentColor, 1000)
+    return () => clearInterval(interval)
+  }, [accentColorRgb])
 
   const toggleLyrics = () => {
     if (fullscreenLyrics) {
@@ -32,12 +51,26 @@ export function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="h-screen flex flex-col text-white relative overflow-hidden">
+      {/* Animated background gradient with accent color */}
+      <div 
+        className="absolute inset-0 transition-all duration-1000 ease-in-out"
+        style={{
+          background: `radial-gradient(ellipse at top left, rgba(${accentColorRgb}, 0.25) 0%, transparent 50%), linear-gradient(135deg, rgba(${accentColorRgb}, 0.15) 0%, rgba(17, 24, 39, 1) 40%, rgb(0, 0, 0) 100%)`
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="relative z-10 h-full flex flex-col">
       <div className="flex flex-1 overflow-hidden">
         {!fullscreenLyrics && <Sidebar />}
         
         {!fullscreenLyrics ? (
           <main className="flex-1 overflow-auto relative">
+            {/* Quick Search Bar */}
+            <div className="sticky top-0 z-20 bg-gradient-to-b from-black/95 to-transparent backdrop-blur-sm p-4">
+              <QuickSearch className="max-w-md mx-auto" />
+            </div>
+            
             {children}
             
             {/* Lyrics Toggle Button */}
@@ -87,6 +120,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         </AnimatePresence>
       </div>
       <PlayerBar />
+      </div>
     </div>
   )
 }

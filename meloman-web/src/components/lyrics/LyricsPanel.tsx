@@ -3,8 +3,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { subsonicApi } from "@/lib/subsonic-api"
+import { getCachedLyrics, preloadLyrics } from "@/lib/lyricsPreloader"
 import { usePlayer } from "@/contexts/PlayerContext"
 import { motion } from "motion/react"
+import { Loader } from "@/components/ui/loader"
 
 interface LyricLine {
   start?: number
@@ -68,8 +70,8 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
     
     if (foundIndex !== currentLineIndex) {
       console.log('[Lyrics] Current time:', currentTime.toFixed(2), 'Line index:', foundIndex, 'Line start:', lyrics[foundIndex]?.start?.toFixed(2), 'Text:', lyrics[foundIndex]?.value?.substring(0, 30))
+      setCurrentLineIndex(foundIndex)
     }
-    setCurrentLineIndex(foundIndex)
   }, [currentTime, lyrics, synced, currentLineIndex])
 
   // Auto-scroll to active lyric (Spotify-style centered)
@@ -94,6 +96,18 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
   const loadLyrics = async (songId: string) => {
     try {
       setLoading(true)
+      
+      // Try to get from cache first
+      const cached = getCachedLyrics(songId)
+      if (cached) {
+        console.log('[Lyrics] Using cached lyrics:', songId, cached.lines.length, 'lines')
+        setLyrics(cached.lines)
+        setSynced(cached.synced)
+        setLoading(false)
+        return
+      }
+      
+      // Otherwise fetch from API
       const data = await subsonicApi.getLyricsBySongId(songId)
       console.log('[Lyrics] API Response:', data)
       
@@ -102,14 +116,29 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
         console.log('[Lyrics] Parsed data:', { synced: lyricsData.synced, lineCount: lyricsData.line?.length })
         
         if (lyricsData.line && lyricsData.line.length > 0) {
-          // Convert milliseconds to seconds
-          const linesInSeconds = lyricsData.line.map(line => ({
-            ...line,
-            start: line.start !== undefined ? line.start / 1000 : undefined
-          }))
-          setLyrics(linesInSeconds)
+          // Convert milliseconds to seconds and expand lines with embedded newlines
+          const expandedLines: LyricLine[] = []
+          for (const line of lyricsData.line) {
+            const start = line.start !== undefined ? line.start / 1000 : undefined
+            const value = line.value || ''
+            
+            // If line contains newlines, split it into multiple lines
+            if (value.includes('\n')) {
+              const parts = value.split('\n')
+              parts.forEach(part => {
+                expandedLines.push({ start, value: part })
+              })
+            } else {
+              expandedLines.push({ start, value })
+            }
+          }
+          
+          setLyrics(expandedLines)
           setSynced(lyricsData.synced || false)
-          console.log('[Lyrics] First line start time (seconds):', linesInSeconds[0]?.start, 'Original (ms):', lyricsData.line[0]?.start)
+          // Also cache for next time
+          preloadLyrics(songId).catch(console.error)
+          console.log('[Lyrics] Loaded', expandedLines.length, 'lines (synced:', lyricsData.synced, ')')
+          console.log('[Lyrics] First line:', expandedLines[0])
         } else {
           setLyrics([])
           setSynced(false)
@@ -137,8 +166,8 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400">
-        <p>Loading lyrics...</p>
+      <div className="flex items-center justify-center h-full">
+        <Loader size="md" text="Loading lyrics..." />
       </div>
     )
   }
@@ -227,7 +256,7 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
                 >
                   <p
                     onClick={() => handleLineClick(line.start)}
-                    className={`transition-all duration-500 leading-relaxed cursor-pointer hover:opacity-90 ${
+                    className={`transition-all duration-500 leading-relaxed cursor-pointer hover:opacity-90 whitespace-pre-wrap ${
                       isCurrent
                         ? 'text-white font-bold text-4xl tracking-tight'
                         : isPast
@@ -235,7 +264,7 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
                         : 'text-gray-500 text-3xl opacity-50'
                     }`}
                   >
-                    {line.value}
+                    {line.value || '\u00A0'}
                   </p>
                 </div>
               )
@@ -272,7 +301,7 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
               <p
                 key={index}
                 onClick={() => handleLineClick(line.start)}
-                className={`text-sm transition-all duration-300 leading-relaxed cursor-pointer hover:opacity-90 ${
+                className={`text-sm transition-all duration-300 leading-relaxed cursor-pointer hover:opacity-90 whitespace-pre-wrap ${
                   isCurrent
                     ? 'text-white font-semibold text-base'
                     : isPast
@@ -280,7 +309,7 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
                     : 'text-gray-500'
                 }`}
               >
-                {line.value}
+                {line.value || '\u00A0'}
               </p>
             )
           })}

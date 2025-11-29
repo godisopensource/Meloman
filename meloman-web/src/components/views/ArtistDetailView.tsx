@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { subsonicApi } from "@/lib/subsonic-api"
 import { usePlayer } from "@/contexts/PlayerContext"
 import { useQueue } from "@/contexts/QueueContext"
+import { FullScreenLoader } from "@/components/ui/loader"
 
 export function ArtistDetailView() {
   const { id } = useParams<{ id: string }>()
@@ -131,11 +132,7 @@ export function ArtistDetailView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading artist...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading artist..." />
   }
 
   if (error || !artist) {

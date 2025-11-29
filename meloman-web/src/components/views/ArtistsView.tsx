@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { subsonicApi } from "@/lib/subsonic-api"
+import { FullScreenLoader } from "@/components/ui/loader"
 
 interface Artist {
   id: string
@@ -34,11 +35,7 @@ export function ArtistsView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading artists...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading artists..." />
   }
 
   if (error) {

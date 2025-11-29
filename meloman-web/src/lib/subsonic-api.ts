@@ -1,5 +1,6 @@
 import axios from 'axios'
 import * as CryptoJS from 'crypto-js'
+import { cache } from './cache'
 
 const API_VERSION = '1.8.0'
 const CLIENT_NAME = 'MelomanWeb'
@@ -93,6 +94,12 @@ class SubsonicAPI {
     localStorage.removeItem('username')
     localStorage.removeItem('subsonic-token')
     localStorage.removeItem('subsonic-salt')
+    cache.clear()
+  }
+  
+  clearCache(): void {
+    cache.clear()
+    console.log('[SubsonicAPI] Cache cleared')
   }
 
   isAuthenticated(): boolean {
@@ -100,7 +107,14 @@ class SubsonicAPI {
   }
 
   async getAlbums(): Promise<any[]> {
-    console.debug('[SubsonicAPI] getAlbums() called')
+    const cacheKey = 'albums:all'
+    const cached = cache.get<any[]>(cacheKey)
+    if (cached) {
+      console.debug('[SubsonicAPI] getAlbums() from cache', cached.length)
+      return cached
+    }
+
+    console.debug('[SubsonicAPI] getAlbums() fetching from API')
     const response = await axios.get<SubsonicResponse<{ albumList2: { album: any[] } }>>(
       this.buildUrl('getAlbumList2', { type: 'alphabeticalByName', size: 500 })
     )
@@ -115,34 +129,102 @@ class SubsonicAPI {
         seen.set(key, album)
       }
     }
-    return Array.from(seen.values())
+    const result = Array.from(seen.values())
+    cache.set(cacheKey, result, 10 * 60 * 1000) // Cache for 10 minutes
+    return result
   }
 
   async getArtists(): Promise<any[]> {
+    const cacheKey = 'artists:all'
+    const cached = cache.get<any[]>(cacheKey)
+    if (cached) {
+      console.debug('[SubsonicAPI] getArtists() from cache', cached.length)
+      return cached
+    }
+
+    console.debug('[SubsonicAPI] getArtists() fetching from API')
     const response = await axios.get<SubsonicResponse<{ artists: { index: any[] } }>>(
       this.buildUrl('getArtists')
     )
     const indexes = response.data['subsonic-response'].artists?.index || []
-    return indexes.flatMap((index: any) => index.artist || [])
+    const result = indexes.flatMap((index: any) => index.artist || [])
+    cache.set(cacheKey, result, 10 * 60 * 1000) // Cache for 10 minutes
+    return result
   }
 
   async getAlbum(id: string): Promise<any> {
+    const cacheKey = `album:${id}`
+    // Temporarily disable cache for albums to debug duplicates
+    // const cached = cache.get<any>(cacheKey)
+    // if (cached) {
+    //   console.debug('[SubsonicAPI] getAlbum() from cache', id)
+    //   return cached
+    // }
+
+    console.debug('[SubsonicAPI] getAlbum() fetching fresh from API', id)
     const response = await axios.get<SubsonicResponse<{ album: any }>>(
       this.buildUrl('getAlbum', { id })
     )
-    return response.data['subsonic-response'].album
+    const result = response.data['subsonic-response'].album
+    
+    // Deduplicate songs by ID and title+artist in case backend returns duplicates
+    if (result.song && Array.isArray(result.song)) {
+      const originalLength = result.song.length
+      const seenKeys = new Set<string>()
+      const uniqueSongs: any[] = []
+      
+      for (const song of result.song) {
+        // Use composite key: ID + normalized title + artist
+        const key = `${song.id}::${(song.title || '').toLowerCase().trim()}::${(song.artist || '').toLowerCase().trim()}`
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key)
+          uniqueSongs.push(song)
+        } else {
+          console.warn('[SubsonicAPI] Duplicate song in album', id, ':', song.title, 'by', song.artist)
+        }
+      }
+      
+      if (originalLength !== uniqueSongs.length) {
+        console.log('[SubsonicAPI] Removed', originalLength - uniqueSongs.length, 'duplicate(s) from album', id)
+      }
+      result.song = uniqueSongs
+    }
+    
+    cache.set(cacheKey, result, 10 * 60 * 1000) // Cache for 10 minutes
+    return result
   }
 
   async search(query: string): Promise<{ albums: any[], artists: any[], songs: any[] }> {
+    const cacheKey = `search:${query.toLowerCase().trim()}`
+    const cached = cache.get<{ albums: any[], artists: any[], songs: any[] }>(cacheKey)
+    if (cached) {
+      console.debug('[SubsonicAPI] search() from cache', query)
+      return cached
+    }
+
+    console.debug('[SubsonicAPI] search() fetching from API', query)
     const response = await axios.get<SubsonicResponse<{ searchResult3: any }>>(
       this.buildUrl('search3', { query, albumCount: 20, artistCount: 20, songCount: 50 })
     )
     const result = response.data['subsonic-response'].searchResult3 || {}
-    return {
+    
+    // Deduplicate songs by title+artist
+    const songs = result.song || []
+    const seenSongs = new Set<string>()
+    const uniqueSongs = songs.filter((song: any) => {
+      const key = `${(song.title || '').toLowerCase().trim()}::${(song.artist || '').toLowerCase().trim()}`
+      if (seenSongs.has(key)) return false
+      seenSongs.add(key)
+      return true
+    })
+    
+    const searchResult = {
       albums: result.album || [],
       artists: result.artist || [],
-      songs: result.song || [],
+      songs: uniqueSongs,
     }
+    cache.set(cacheKey, searchResult, 5 * 60 * 1000) // Cache for 5 minutes
+    return searchResult
   }
 
   getCoverArtUrl(id: string, size?: number): string {
@@ -168,12 +250,20 @@ class SubsonicAPI {
   }
 
   async getSongs(size: number = 500): Promise<any[]> {
-    console.debug('[SubsonicAPI] getSongs() called, size=', size)
+    const cacheKey = `songs:random:${size}`
+    const cached = cache.get<any[]>(cacheKey)
+    if (cached) {
+      console.debug('[SubsonicAPI] getSongs() from cache', cached.length)
+      return cached
+    }
+
+    console.debug('[SubsonicAPI] getSongs() fetching from API, size=', size)
     const response = await axios.get<SubsonicResponse<{ randomSongs: { song: any[] } }>>(
       this.buildUrl('getRandomSongs', { size })
     )
     const songs = response.data['subsonic-response'].randomSongs?.song || []
     console.debug('[SubsonicAPI] getSongs() returned', songs.length)
+    cache.set(cacheKey, songs, 5 * 60 * 1000) // Cache for 5 minutes (shorter for random songs)
     return songs
   }
 
@@ -214,3 +304,12 @@ class SubsonicAPI {
 }
 
 export const subsonicApi = new SubsonicAPI()
+
+// Expose clearCache globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).clearMelomanCache = () => {
+    subsonicApi.clearCache()
+    console.log('✅ Meloman cache cleared! Refresh the page to see changes.')
+  }
+  console.log('💡 Tip: Run clearMelomanCache() in console to clear the cache')
+}

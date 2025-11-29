@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { subsonicApi } from '@/lib/subsonic-api'
 import { getAverageColorFromImageUrl } from '@/lib/coverColor'
 import { useQueue, type QueueTrack } from './QueueContext'
+import { preloadLyrics } from '@/lib/lyricsPreloader'
 
 export interface Track {
   id: string
@@ -39,6 +40,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(70)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [accentApplied, setAccentApplied] = useState(false)
 
   useEffect(() => {
     if (!audioRef.current) {
@@ -86,13 +88,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     try {
       if (t && t.coverArt) {
         const url = subsonicApi.getCoverArtUrl(t.coverArt, 300)
-        console.debug('[Player] Getting accent color from:', url)
-        const color = await getAverageColorFromImageUrl(url)
+        console.debug('[Player] Extracting accent color from track:', t.title, 'coverArt:', t.coverArt)
+        let color = await getAverageColorFromImageUrl(url)
+        console.debug('[Player] ✓ Extracted color:', color, 'for track:', t.title)
+        setAccentApplied(true)
         const rgb = color.replace('#', '')
-        const r = parseInt(rgb.substring(0, 2), 16)
-        const g = parseInt(rgb.substring(2, 4), 16)
-        const b = parseInt(rgb.substring(4, 6), 16)
+        let r = parseInt(rgb.substring(0, 2), 16)
+        let g = parseInt(rgb.substring(2, 4), 16)
+        let b = parseInt(rgb.substring(4, 6), 16)
         const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        
+        // Ensure color has enough contrast on dark background
+        // If too dark (luminance < 0.3), brighten it
+        if (luminance < 0.3) {
+          const factor = 0.4 / Math.max(luminance, 0.1)
+          r = Math.min(255, Math.floor(r * factor))
+          g = Math.min(255, Math.floor(g * factor))
+          b = Math.min(255, Math.floor(b * factor))
+          color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+        }
+        
         const foreground = luminance > 0.5 ? '#111827' : '#ffffff'
         document.documentElement.style.setProperty('--accent-color', color)
         document.documentElement.style.setProperty('--accent-foreground', foreground)
@@ -101,26 +116,60 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         document.documentElement.style.setProperty('--accent-color', '#3b82f6')
         document.documentElement.style.setProperty('--accent-foreground', '#ffffff')
         document.documentElement.style.setProperty('--accent-color-rgb', '59, 130, 246')
+        setAccentApplied(true)
       }
     } catch (e) {
       console.error('[Player] Failed to set accent color:', e)
       document.documentElement.style.setProperty('--accent-color', '#3b82f6')
       document.documentElement.style.setProperty('--accent-foreground', '#ffffff')
+      setAccentApplied(true)
     }
   }
+  
+  // Apply accent color immediately when track changes
+  useEffect(() => {
+    if (currentTrack) {
+      applyAccentFromTrack(currentTrack)
+    }
+  }, [currentTrack?.id, currentTrack?.coverArt])
 
   // Play track when queue index changes
   useEffect(() => {
-    if (currentIndex >= 0 && queue[currentIndex]) {
+    if (currentIndex >= 0 && currentIndex < queue.length && queue[currentIndex] && audioRef.current) {
       const track = queue[currentIndex]
-      if (audioRef.current && track.id !== currentTrack?.id) {
+      
+      // Only switch track if it's actually a different track
+      if (track.id !== currentTrack?.id) {
         const streamUrl = subsonicApi.getStreamUrl(track.id)
+        console.debug('[Player] Queue index changed to', currentIndex, '- playing:', track.title)
+        
+        audioRef.current.pause()
         audioRef.current.src = streamUrl
-        audioRef.current.play()
+        audioRef.current.currentTime = 0
+        
+        // Set track immediately for instant UI update
         setCurrentTrack(track)
-        // Ensure accent color updates when queue-based playback changes
-        applyAccentFromTrack(track)
-        setIsPlaying(true)
+        setCurrentTime(0)
+        
+        // Update accent color async (non-blocking)
+        applyAccentFromTrack(track).catch(console.error)
+        
+        audioRef.current.play()
+          .then(() => {
+            console.debug('[Player] ✓ Autoplay successful for:', track.title)
+            setIsPlaying(true)
+          })
+          .catch((err) => {
+            console.warn('[Player] Autoplay failed for:', track.title, err)
+            setIsPlaying(false)
+          })
+
+        // Preload lyrics for next track in queue
+        if (currentIndex + 1 < queue.length) {
+          const nextTrack = queue[currentIndex + 1]
+          console.debug('[Player] Preloading lyrics for next track:', nextTrack.title)
+          preloadLyrics(nextTrack.id).catch(console.error)
+        }
 
         setTimeout(() => {
           if (audioRef.current && !audioRef.current.paused) {
@@ -134,51 +183,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const play = (track: Track, context?: QueueTrack[]) => {
     if (!audioRef.current) return
     const streamUrl = subsonicApi.getStreamUrl(track.id)
-    // Stop current playback, reset time, set new source
-    try {
+    
+    // Properly stop current playback before starting new one
+    const wasPlaying = !audioRef.current.paused
+    if (wasPlaying) {
       audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    } catch (e) {
-      console.debug('[Player] pause/reset currentTime failed', e)
     }
+    
+    // Set new source and track IMMEDIATELY for instant UI feedback
     audioRef.current.src = streamUrl
-    try {
-      // Force load the new source and reset playback position
-      audioRef.current.load()
-      audioRef.current.currentTime = 0
-    } catch (e) {
-      console.debug('[Player] load/currentTime reset failed', e)
-    }
+    audioRef.current.currentTime = 0
+    setCurrentTime(0)
+    setCurrentTrack(track)
     console.debug('[Player] playing', track.id, streamUrl)
     
-    // Update accent color right away (don't wait for play)
-    applyAccentFromTrack(track)
+    // Update accent color async (non-blocking)
+    applyAccentFromTrack(track).catch(console.error)
     
-    // Attempt to play and update UI accordingly
+    // Start playback immediately
     audioRef.current.play().then(() => {
       console.debug('[Player] play resolved', track.id)
-      setCurrentTrack(track)
       setIsPlaying(true)
     }).catch((err) => {
       console.warn('[Player] play() promise rejected', err)
-      // Fallback: set currentTrack but keep isPlaying false; user can press play
-      setCurrentTrack(track)
       setIsPlaying(false)
-      // Try a single retry after a short delay (might fix some autoplay race conditions)
-      setTimeout(() => {
-        audioRef.current?.play().then(() => {
-          console.debug('[Player] play retry resolved', track.id)
-          setIsPlaying(true)
-        }).catch((e) => {
-          console.warn('[Player] play retry rejected', e)
-        })
-      }, 250)
     })
 
     // Update queue if context provided
     if (context) {
       const trackIndex = context.findIndex(t => t.id === track.id)
       setQueue(context, trackIndex >= 0 ? trackIndex : 0)
+      
+      // Preload lyrics for next track if available
+      if (trackIndex >= 0 && trackIndex + 1 < context.length) {
+        const nextTrack = context[trackIndex + 1]
+        console.debug('[Player] Preloading lyrics for next track:', nextTrack.title)
+        preloadLyrics(nextTrack.id).catch(console.error)
+      }
     }
 
     // Scrobble after 30 seconds or half the track

@@ -4,6 +4,7 @@ import { Search, Play } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { subsonicApi } from "@/lib/subsonic-api"
 import { usePlayer } from "@/contexts/PlayerContext"
+import { Loader } from "@/components/ui/loader"
 
 interface SearchResults {
   albums: any[]
@@ -83,7 +84,11 @@ export function SearchView() {
           />
         </div>
 
-        {loading && <div className="text-gray-400">Searching...</div>}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader size="md" text="Searching..." />
+          </div>
+        )}
 
         {!loading && hasSearched && (
           <div className="space-y-8">

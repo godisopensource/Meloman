@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { subsonicApi } from "@/lib/subsonic-api"
 import { usePlayer } from "@/contexts/PlayerContext"
 import { useQueue } from '@/contexts/QueueContext'
+import { FullScreenLoader } from "@/components/ui/loader"
+import { ArtistLinks } from "@/components/common/ArtistLinks"
 
 interface Song {
   id: string
@@ -164,11 +166,7 @@ export function SongsView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Loading songs...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Loading songs..." />
   }
 
   if (error) {
@@ -240,7 +238,7 @@ export function SongsView() {
                   
                 </div>
                 <div className="flex items-center">
-                  <span className="text-gray-400 truncate hover:underline cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); navigateToArtist(song) }}>{song.artist}</span>
+                  <ArtistLinks artistString={song.artist} className="text-gray-400 truncate" />
                 </div>
                 <div className="flex items-center">
                   <span className="text-gray-400 truncate hover:underline cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); navigateToAlbum(song) }}>{song.album}</span>

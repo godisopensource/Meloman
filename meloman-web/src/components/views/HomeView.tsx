@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { subsonicApi } from "@/lib/subsonic-api"
 import { usePlayer } from "@/contexts/PlayerContext"
 import { motion } from "motion/react"
+import { FullScreenLoader } from "@/components/ui/loader"
 
 interface Album {
   id: string
@@ -102,12 +103,10 @@ export function HomeView() {
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-400">Chargement...</div>
-      </div>
-    )
+    return <FullScreenLoader text="Chargement..." />
   }
+
+  const hasContent = recentAlbums.length > 0 || recentSongs.length > 0
 
   return (
     <ScrollArea className="h-full">
@@ -120,6 +119,13 @@ export function HomeView() {
           <h1 className="text-6xl font-bold mb-2">{getGreeting()}, {userName}</h1>
           <p className="text-gray-400 text-lg mb-8">Découvrez votre musique</p>
         </motion.div>
+
+        {!hasContent && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <p className="text-xl mb-2">Aucune musique disponible</p>
+            <p className="text-sm">Commencez par ajouter des fichiers à votre bibliothèque</p>
+          </div>
+        )}
 
         {/* Recent Albums */}
         {recentAlbums.length > 0 && (
