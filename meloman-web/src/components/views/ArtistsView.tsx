@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { useNavigate } from "react-router-dom"
+import { Users } from "lucide-react"
 import { FixedSizeGrid } from 'react-window'
 import type { GridChildComponentProps } from 'react-window'
 import AutoSizer from 'react-virtualized-auto-sizer'
@@ -138,7 +139,15 @@ export function ArtistsView() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between p-8 pb-4">
-        <h1 className="text-4xl font-bold">Artists</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm">
+            <Users className="h-8 w-8 text-green-400" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-bold">Artists</h1>
+            <p className="text-sm text-gray-400">{sortedAndFilteredArtists.length.toLocaleString()} artists</p>
+          </div>
+        </div>
         <SortFilter
           sortOptions={[
             { value: 'name', label: 'Name' },

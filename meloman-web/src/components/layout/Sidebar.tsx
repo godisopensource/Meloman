@@ -1,10 +1,12 @@
 import { useNavigate, useLocation } from "react-router-dom"
-import { Home, Search, Music, Users, Disc, ListMusic } from "lucide-react"
+import { Home, Search, Music, Users, Disc, ListMusic, Compass, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Search, label: "Search", path: "/search" },
+  { icon: Compass, label: "Discover", path: "/discover" },
+  { icon: Calendar, label: "Concerts", path: "/concerts" },
 ]
 
 const libraryItems = [
@@ -23,9 +25,9 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-64 bg-black text-white flex flex-col h-full">
+    <div className="w-64 bg-black/40 backdrop-blur-xl border-r border-white/5 text-white flex flex-col h-full">
       <div className="p-6">
-        <h1 className="text-2xl font-bold cursor-pointer" onClick={() => navigate('/')}>
+        <h1 className="text-2xl font-bold cursor-pointer bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent hover:from-[var(--accent-color)] hover:to-white transition-all" onClick={() => navigate('/')}>
           Meloman
         </h1>
       </div>
@@ -37,15 +39,15 @@ export function Sidebar() {
               key={item.path}
               variant="ghost"
               onClick={() => navigate(item.path)}
-              className="w-full justify-start transition-all duration-200"
+              className="w-full justify-start transition-all duration-200 rounded-xl"
               style={
                 isActive(item.path) 
-                  ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.1)' } 
+                  ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)', backdropFilter: 'blur(8px)' } 
                   : { color: '#d1d5db' }
               }
               onMouseEnter={(e) => {
                 if (!isActive(item.path)) {
-                  e.currentTarget.style.backgroundColor = 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.05)'
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
                 }
               }}
               onMouseLeave={(e) => {
@@ -60,8 +62,8 @@ export function Sidebar() {
           ))}
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-800">
-          <h2 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        <div className="mt-6 pt-6 border-t border-white/5">
+          <h2 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Library
           </h2>
           <div className="space-y-1">
@@ -70,15 +72,15 @@ export function Sidebar() {
                 key={item.path}
                 variant="ghost"
                 onClick={() => navigate(item.path)}
-                className="w-full justify-start transition-all duration-200"
+                className="w-full justify-start transition-all duration-200 rounded-xl"
                 style={
                   isActive(item.path) 
-                    ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.1)' } 
+                    ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)', backdropFilter: 'blur(8px)' } 
                     : { color: '#d1d5db' }
                 }
                 onMouseEnter={(e) => {
                   if (!isActive(item.path)) {
-                    e.currentTarget.style.backgroundColor = 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.05)'
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
                   }
                 }}
                 onMouseLeave={(e) => {

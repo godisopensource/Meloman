@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react"
-import { Play, Clock, Shuffle } from "lucide-react"
+import { Play, Clock, Shuffle, Music2 } from "lucide-react"
 import { useNavigate } from 'react-router-dom'
 import { FixedSizeList } from "react-window"
 import AutoSizer from "react-virtualized-auto-sizer"
@@ -314,7 +314,15 @@ export function SongsView() {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between p-8 pb-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-4xl font-bold">Songs</h1>
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm">
+              <Music2 className="h-8 w-8 text-purple-400" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold">Songs</h1>
+              <p className="text-sm text-gray-400">{sortedAndFilteredSongs.length.toLocaleString()} tracks</p>
+            </div>
+          </div>
           {sortedAndFilteredSongs.length > 0 && (
             <Button 
               className="rounded-full px-6 py-2 bg-gray-800 border border-gray-600 text-white hover:bg-gray-700"

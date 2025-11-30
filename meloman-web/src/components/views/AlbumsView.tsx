@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react"
-import { Play, X } from "lucide-react"
+import { Play, X, Disc } from "lucide-react"
 import { useQueue } from '@/contexts/QueueContext'
 import { usePlayer } from '@/contexts/PlayerContext'
 import { useNavigate, useSearchParams } from "react-router-dom"
@@ -239,7 +239,15 @@ export function AlbumsView() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between p-8 pb-4">
-        <h1 className="text-4xl font-bold">Albums</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-sm">
+            <Disc className="h-8 w-8 text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-bold">Albums</h1>
+            <p className="text-sm text-gray-400">{sortedAndFilteredAlbums.length.toLocaleString()} albums</p>
+          </div>
+        </div>
         <div className="flex items-center gap-4">
           <SortFilter
             sortOptions={[

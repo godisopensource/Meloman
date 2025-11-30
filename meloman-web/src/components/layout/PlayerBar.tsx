@@ -42,7 +42,7 @@ export function PlayerBar() {
   }
 
   return (
-    <div className="h-24 bg-black border-t border-gray-800 px-4 flex items-center justify-between">
+    <div className="h-24 bg-black/60 backdrop-blur-xl border-t border-white/10 px-4 flex items-center justify-between">
       {/* Track Info */}
       <div className="flex items-center gap-4 w-[30%]">
         {currentTrack ? (

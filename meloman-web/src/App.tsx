@@ -15,6 +15,8 @@ import { PlaylistsView } from "@/components/views/PlaylistsView"
 import { PlaylistDetailView } from "@/components/views/PlaylistDetailView"
 import { SearchView } from "@/components/views/SearchView"
 import { SearchResultsView } from "@/components/views/SearchResultsView"
+import { DiscoverView } from "@/components/views/DiscoverView"
+import { ConcertsView } from "@/components/views/ConcertsView"
 import { LoginView } from "@/components/views/LoginView"
 
 function ProtectedRoutes() {
@@ -41,6 +43,8 @@ function ProtectedRoutes() {
               <Route path="/playlists/:id" element={<PageTransition><PlaylistDetailView /></PageTransition>} />
               <Route path="/search" element={<PageTransition><SearchView /></PageTransition>} />
               <Route path="/search/results" element={<PageTransition><SearchResultsView /></PageTransition>} />
+              <Route path="/discover" element={<PageTransition><DiscoverView /></PageTransition>} />
+              <Route path="/concerts" element={<PageTransition><ConcertsView /></PageTransition>} />
             </Routes>
           </AnimatePresence>
         </MainLayout>
