@@ -40,12 +40,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(70)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const lastPlayedTrackId = useRef<string | null>(null)
+  const isManualPlay = useRef(false)
+  const lastQueueIndex = useRef<number>(-1)
+  const queueRef = useRef<QueueTrack[]>([])
   const [accentApplied, setAccentApplied] = useState(false)
+  
+  // Keep queueRef in sync with queue state
+  useEffect(() => {
+    queueRef.current = queue
+  }, [queue])
 
+  // Initialize audio element once on mount
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio()
       audioRef.current.volume = volume / 100
+      // Don't set any src initially - wait for first play
 
       audioRef.current.addEventListener('timeupdate', () => {
         const time = audioRef.current?.currentTime || 0
@@ -59,16 +70,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audioRef.current.addEventListener('ended', () => {
         setIsPlaying(false)
         setCurrentTime(0)
-        // Auto-play next track
-        const hasNext = playNext()
-        if (!hasNext) {
-          setIsPlaying(false)
-        }
+        // Auto-play next track - use ref to avoid stale closure
+        playNext()
       })
 
       audioRef.current.addEventListener('play', () => {
-          setIsPlaying(true)
-        })
+        setIsPlaying(true)
+      })
 
       audioRef.current.addEventListener('pause', () => {
         setIsPlaying(false)
@@ -81,7 +89,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         audioRef.current.src = ''
       }
     }
-  }, [playNext])
+  }, []) // Empty deps - only run on mount
 
   // Helper: set accent color based on a track's cover art
   const applyAccentFromTrack = async (t: Track | null) => {
@@ -133,13 +141,39 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [currentTrack?.id, currentTrack?.coverArt])
 
-  // Play track when queue index changes
+  // Play track when queue index changes (only from navigation, not from manual play or queue additions)
   useEffect(() => {
-    if (currentIndex >= 0 && currentIndex < queue.length && queue[currentIndex] && audioRef.current) {
-      const track = queue[currentIndex]
+    // Use queueRef to avoid re-triggering when queue content changes
+    const currentQueue = queueRef.current
+    
+    console.debug('[Player] useEffect triggered - currentIndex:', currentIndex, 'lastQueueIndex:', lastQueueIndex.current, 'queue.length:', currentQueue.length, 'isManualPlay:', isManualPlay.current)
+    
+    // Skip if this is a manual play() call - let play() handle everything
+    if (isManualPlay.current) {
+      console.debug('[Player] Skipping useEffect - manual play in progress')
+      isManualPlay.current = false
+      lastQueueIndex.current = currentIndex
+      return
+    }
+    
+    // Only react to actual index changes
+    if (currentIndex === lastQueueIndex.current) {
+      console.debug('[Player] Skipping useEffect - same index')
+      return
+    }
+    
+    lastQueueIndex.current = currentIndex
+    
+    if (currentIndex >= 0 && currentIndex < currentQueue.length && currentQueue[currentIndex] && audioRef.current) {
+      const track = currentQueue[currentIndex]
+      console.debug('[Player] Track from queue:', track.title, 'lastPlayedTrackId:', lastPlayedTrackId.current)
       
-      // Only switch track if it's actually a different track
-      if (track.id !== currentTrack?.id) {
+      // Only switch track if it's actually a different track AND audio is not already playing this
+      const audioSrc = audioRef.current.src
+      const expectedSrc = subsonicApi.getStreamUrl(track.id)
+      const isSameSource = audioSrc === expectedSrc || audioSrc.includes(track.id)
+      
+      if (track.id !== lastPlayedTrackId.current && !isSameSource) {
         const streamUrl = subsonicApi.getStreamUrl(track.id)
         console.debug('[Player] Queue index changed to', currentIndex, '- playing:', track.title)
         
@@ -149,6 +183,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         
         // Set track immediately for instant UI update
         setCurrentTrack(track)
+        lastPlayedTrackId.current = track.id
         setCurrentTime(0)
         
         // Update accent color async (non-blocking)
@@ -160,13 +195,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             setIsPlaying(true)
           })
           .catch((err) => {
-            console.warn('[Player] Autoplay failed for:', track.title, err)
+            console.error('[Player] ✗ Autoplay failed for:', track.title, err)
             setIsPlaying(false)
           })
-
+        
         // Preload lyrics for next track in queue
-        if (currentIndex + 1 < queue.length) {
-          const nextTrack = queue[currentIndex + 1]
+        if (currentIndex + 1 < currentQueue.length) {
+          const nextTrack = currentQueue[currentIndex + 1]
           console.debug('[Player] Preloading lyrics for next track:', nextTrack.title)
           preloadLyrics(nextTrack.id).catch(console.error)
         }
@@ -176,40 +211,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             subsonicApi.scrobble(track.id, true).catch(console.error)
           }
         }, Math.min(30000, (track.duration || 0) * 500))
+      } else {
+        console.debug('[Player] Same track, not switching')
       }
     }
-  }, [currentIndex, queue])
+  }, [currentIndex]) // Only depend on currentIndex, use queueRef for queue data
 
   const play = (track: Track, context?: QueueTrack[]) => {
-    if (!audioRef.current) return
     const streamUrl = subsonicApi.getStreamUrl(track.id)
     
-    // Properly stop current playback before starting new one
-    const wasPlaying = !audioRef.current.paused
-    if (wasPlaying) {
-      audioRef.current.pause()
-    }
+    // Set flag to prevent useEffect from interfering
+    isManualPlay.current = true
+    lastPlayedTrackId.current = track.id
     
-    // Set new source and track IMMEDIATELY for instant UI feedback
-    audioRef.current.src = streamUrl
-    audioRef.current.currentTime = 0
-    setCurrentTime(0)
-    setCurrentTrack(track)
-    console.debug('[Player] playing', track.id, streamUrl)
-    
-    // Update accent color async (non-blocking)
-    applyAccentFromTrack(track).catch(console.error)
-    
-    // Start playback immediately
-    audioRef.current.play().then(() => {
-      console.debug('[Player] play resolved', track.id)
-      setIsPlaying(true)
-    }).catch((err) => {
-      console.warn('[Player] play() promise rejected', err)
-      setIsPlaying(false)
-    })
-
-    // Update queue if context provided
+    // Update queue (useEffect will see isManualPlay flag and skip)
     if (context) {
       const trackIndex = context.findIndex(t => t.id === track.id)
       setQueue(context, trackIndex >= 0 ? trackIndex : 0)
@@ -221,6 +236,58 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         preloadLyrics(nextTrack.id).catch(console.error)
       }
     }
+    
+    // Set track for UI update (triggers accent color extraction)
+    setCurrentTrack(track)
+    
+    // Use requestAnimationFrame to ensure we're after all React state updates
+    requestAnimationFrame(() => {
+      // Create a fresh audio element to avoid any error state from previous plays
+      const oldAudio = audioRef.current
+      const newAudio = new Audio(streamUrl)
+      newAudio.volume = volume / 100
+      
+      // Transfer event listeners to new audio element
+      newAudio.addEventListener('timeupdate', () => {
+        setCurrentTime(newAudio.currentTime || 0)
+      })
+      newAudio.addEventListener('durationchange', () => {
+        setDuration(newAudio.duration || 0)
+      })
+      newAudio.addEventListener('ended', () => {
+        setIsPlaying(false)
+        setCurrentTime(0)
+        playNext()
+      })
+      newAudio.addEventListener('play', () => {
+        setIsPlaying(true)
+      })
+      newAudio.addEventListener('pause', () => {
+        setIsPlaying(false)
+      })
+      
+      // Stop and clean up old audio completely
+      if (oldAudio) {
+        oldAudio.pause()
+        oldAudio.src = ''
+        oldAudio.load() // Reset the audio element
+      }
+      
+      // Replace the ref
+      audioRef.current = newAudio
+      setCurrentTime(0)
+      console.debug('[Player] playing', track.id, streamUrl)
+      
+      // Start playback
+      newAudio.play().then(() => {
+        console.debug('[Player] play resolved', track.id)
+        setIsPlaying(true)
+      }).catch((err) => {
+        console.warn('[Player] play() promise rejected', err)
+        setIsPlaying(false)
+        isManualPlay.current = false
+      })
+    })
 
     // Scrobble after 30 seconds or half the track
     setTimeout(() => {
@@ -237,8 +304,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }
 
   const resume = () => {
-    if (audioRef.current) {
-      audioRef.current.play()
+    if (audioRef.current && audioRef.current.src && currentTrack) {
+      audioRef.current.play().catch(err => {
+        console.error('[Player] Resume failed:', err)
+        setIsPlaying(false)
+      })
     }
   }
 

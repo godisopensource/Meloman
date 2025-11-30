@@ -164,12 +164,11 @@ export function PlayerBar() {
       {/* Volume Control */}
         <div className="flex items-center gap-2 w-[30%] justify-end">
         <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-          <Button
+          <Button 
             variant="ghost"
             size="sm"
             onClick={() => setVolume(volume > 0 ? 0 : 70)}
-            className="text-gray-400"
-            style={{ color: 'var(--accent-foreground, #fff)' }}
+            className="text-gray-300 hover:text-white transition-colors"
           >
             <Volume2 className="h-5 w-5" />
           </Button>

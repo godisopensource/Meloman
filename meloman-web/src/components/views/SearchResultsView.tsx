@@ -86,7 +86,7 @@ export function SearchResultsView() {
     }
   }
 
-  const handlePlaySong = (song: Song, allSongs: Song[], index: number) => {
+  const handlePlaySong = (_song: Song, allSongs: Song[], index: number) => {
     const queue = allSongs.map(s => ({
       id: s.id,
       title: s.title,

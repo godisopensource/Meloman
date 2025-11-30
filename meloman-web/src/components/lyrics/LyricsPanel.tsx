@@ -45,10 +45,13 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
   useEffect(() => {
     if (currentTrack?.id) {
       console.log('[Lyrics] Loading lyrics for track:', currentTrack.id)
+      // Reset current line when track changes
+      setCurrentLineIndex(-1)
       loadLyrics(currentTrack.id)
     } else {
       setLyrics([])
       setSynced(false)
+      setCurrentLineIndex(-1)
     }
   }, [currentTrack?.id])
 
@@ -68,11 +71,14 @@ export function LyricsPanel({ fullscreen = false, onExitFullscreen }: LyricsPane
       }
     }
     
-    if (foundIndex !== currentLineIndex) {
-      console.log('[Lyrics] Current time:', currentTime.toFixed(2), 'Line index:', foundIndex, 'Line start:', lyrics[foundIndex]?.start?.toFixed(2), 'Text:', lyrics[foundIndex]?.value?.substring(0, 30))
-      setCurrentLineIndex(foundIndex)
-    }
-  }, [currentTime, lyrics, synced, currentLineIndex])
+    // Always update to ensure sync after track change
+    setCurrentLineIndex(prev => {
+      if (prev !== foundIndex) {
+        console.log('[Lyrics] Current time:', currentTime.toFixed(2), 'Line index:', foundIndex, 'Line start:', lyrics[foundIndex]?.start?.toFixed(2), 'Text:', lyrics[foundIndex]?.value?.substring(0, 30))
+      }
+      return foundIndex
+    })
+  }, [currentTime, lyrics, synced])
 
   // Auto-scroll to active lyric (Spotify-style centered)
   useEffect(() => {

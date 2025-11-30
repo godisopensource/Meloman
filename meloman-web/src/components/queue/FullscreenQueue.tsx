@@ -18,7 +18,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function FullscreenQueue({ onClose }: FullscreenQueueProps) {
-  const { queue, currentIndex, removeFromQueue, setQueue, jumpTo } = useQueue()
+  const { queue, currentIndex, removeFromQueue, setQueue, playTrack } = useQueue()
   const { currentTrack } = usePlayer()
   const [reorderedQueue, setReorderedQueue] = useState(queue)
 
@@ -36,7 +36,7 @@ export function FullscreenQueue({ onClose }: FullscreenQueueProps) {
   }
 
   const handlePlay = (index: number) => {
-    jumpTo(index)
+    playTrack(index)
   }
 
   return (

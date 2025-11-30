@@ -151,7 +151,7 @@ export function AlbumDetailView() {
       <div className="p-8">
         <Button 
           variant="ghost" 
-          className="mb-6 text-gray-400 transition-colors hover:bg-gray-800"
+          className="mb-6 text-gray-400 transition-colors hover:bg-gray-800/80 hover:text-white"
           onClick={() => navigate('/albums')}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />

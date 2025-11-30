@@ -51,6 +51,14 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addNext = useCallback((track: QueueTrack) => {
+    // Only add if there's a valid current position
+    if (currentIndex < 0) {
+      // If no current track, just add to queue
+      setQueueState(prev => [...prev, track])
+      setOriginalQueue(prev => [...prev, track])
+      return
+    }
+    
     const newIndex = currentIndex + 1
     setQueueState(prev => {
       const newQueue = [...prev]

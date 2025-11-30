@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Play, ArrowLeft } from "lucide-react"
+import { Play, ArrowLeft, Shuffle } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { subsonicApi } from "@/lib/subsonic-api"
@@ -150,7 +150,7 @@ export function ArtistDetailView() {
       <div className="p-8">
         <Button 
           variant="ghost" 
-          className="mb-6 text-gray-400 transition-colors hover:bg-gray-800"
+          className="mb-6 text-gray-400 transition-colors hover:bg-gray-800/80 hover:text-white"
           onClick={() => navigate('/artists')}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -178,14 +178,34 @@ export function ArtistDetailView() {
             <div className="flex items-center gap-4">
               <p className="text-sm text-gray-300">{albums.length} albums · {songs.length} songs</p>
               {songs.length > 0 && (
-                <Button 
-                  className="rounded-full text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
-                  style={{ backgroundColor: 'var(--accent-color, #3b82f6)', color: 'var(--accent-foreground, #ffffff)' }}
-                  onClick={handlePlayAllSongs}
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  Play All
-                </Button>
+                <>
+                  <Button 
+                    className="rounded-full text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-200"
+                    style={{ backgroundColor: 'var(--accent-color, #3b82f6)', color: 'var(--accent-foreground, #ffffff)' }}
+                    onClick={handlePlayAllSongs}
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Play All
+                  </Button>
+                  <Button 
+                    className="rounded-full px-6 py-2 bg-gray-800 border border-gray-600 text-white hover:bg-gray-700"
+                    onClick={() => {
+                      const shuffled = [...songs].sort(() => Math.random() - 0.5)
+                      const queue = shuffled.map(s => ({
+                        id: s.id,
+                        title: s.title,
+                        artist: s.artist,
+                        album: s.album,
+                        duration: s.duration,
+                        coverArt: s.coverArt,
+                      }))
+                      play(queue[0], queue)
+                    }}
+                  >
+                    <Shuffle className="mr-2 h-4 w-4" />
+                    Shuffle
+                  </Button>
+                </>
               )}
             </div>
           </div>
