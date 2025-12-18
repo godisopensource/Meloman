@@ -29,6 +29,30 @@ dev: check_env   ##@Development Start Navidrome in development mode, with hot-re
 	ND_ENABLEINSIGHTSCOLLECTOR="false" npx foreman -j Procfile.dev -p 4533 start
 .PHONY: dev
 
+# Start/stop all development services (navidrome, web and audiomuse)
+.PHONY: dev-all
+
+dev-all: ##@Development Start all services (tmux recommended)
+	@echo "Starting all development services (Navidrome, meloman-web, AudioMuse-AI)"
+	@sh ./scripts/dev.sh start
+
+.PHONY: dev-all-stop
+
+dev-all-stop: ##@Development Stop all services started by dev-all
+	@echo "Stopping all development services"
+	@sh ./scripts/dev.sh stop
+
+.PHONY: dev-all-attach
+
+dev-all-attach: ##@Development Attach to tmux session started by dev-all
+	@echo "Attaching to dev session (if tmux available)"
+	@sh ./scripts/dev.sh attach
+
+.PHONY: dev-all-status
+
+dev-all-status: ##@Development Show status of dev-all services
+	@sh ./scripts/dev.sh status
+
 server: check_go_env buildjs ##@Development Start the backend in development mode
 	@ND_ENABLEINSIGHTSCOLLECTOR="false" go tool reflex -d none -c reflex.conf
 .PHONY: server
