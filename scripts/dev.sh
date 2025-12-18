@@ -23,10 +23,10 @@ start_tmux() {
   echo "Creating tmux session '$SESSION' with Navidrome, meloman-web and AudioMuse-AI"
   # Navidrome in first pane
   tmux new-session -d -s "$SESSION" -n navidrome "sh -lc '$NAV_CMD'"
-  # Split horizontally and start web
-  tmux split-window -h -t "$SESSION:0" "sh -lc '$WEB_CMD'"
-  # Split the right pane vertically for audiomuse
-  tmux split-window -v -t "$SESSION:0.1" "sh -lc '$AM_CMD'"
+  # Split horizontally and start web (target session name for robustness)
+  tmux split-window -h -t "$SESSION" "sh -lc '$WEB_CMD'"
+  # Split the current pane vertically for audiomuse
+  tmux split-window -v -t "$SESSION" "sh -lc '$AM_CMD'"
   tmux select-layout -t "$SESSION" tiled >/dev/null 2>&1 || true
 
   echo "tmux session created. Attach with: tmux attach -t $SESSION"
