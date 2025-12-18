@@ -1,37 +1,51 @@
-import { useNavigate, useLocation } from "react-router-dom"
-import { Home, Search, Music, Users, Disc, ListMusic, Compass, Calendar } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  Home,
+  Search,
+  Music,
+  Users,
+  Disc,
+  ListMusic,
+  Compass,
+  Calendar,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
   { icon: Search, label: "Search", path: "/search" },
   { icon: Compass, label: "Discover", path: "/discover" },
   { icon: Calendar, label: "Concerts", path: "/concerts" },
-]
+];
 
 const libraryItems = [
   { icon: Disc, label: "Albums", path: "/albums" },
   { icon: Users, label: "Artists", path: "/artists" },
   { icon: Music, label: "Songs", path: "/songs" },
   { icon: ListMusic, label: "Playlists", path: "/playlists" },
-]
+];
 
 export function Sidebar() {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/')
-  }
+    return (
+      location.pathname === path || location.pathname.startsWith(path + "/")
+    );
+  };
 
   return (
-    <div className="w-64 bg-black/40 backdrop-blur-xl border-r border-white/5 text-white flex flex-col h-full">
+    <div className="w-64 bg-black/40 h-full">
       <div className="p-6">
-        <h1 className="text-2xl font-bold cursor-pointer bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent hover:from-[var(--accent-color)] hover:to-white transition-all" onClick={() => navigate('/')}>
+        <h1
+          className="text-2xl font-bold cursor-pointer bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent hover:from-[var(--accent-color)] hover:to-white transition-all"
+          onClick={() => navigate("/")}
+        >
           Meloman
         </h1>
       </div>
-      
+
       <nav className="px-3 flex-1">
         <div className="space-y-1">
           {navItems.map((item) => (
@@ -41,18 +55,24 @@ export function Sidebar() {
               onClick={() => navigate(item.path)}
               className="w-full justify-start transition-all duration-200 rounded-xl"
               style={
-                isActive(item.path) 
-                  ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)', backdropFilter: 'blur(8px)' } 
-                  : { color: '#d1d5db' }
+                isActive(item.path)
+                  ? {
+                      color: "var(--accent-color, #3b82f6)",
+                      backgroundColor:
+                        "rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)",
+                      backdropFilter: "blur(8px)",
+                    }
+                  : { color: "#d1d5db" }
               }
               onMouseEnter={(e) => {
                 if (!isActive(item.path)) {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
+                  e.currentTarget.style.backgroundColor =
+                    "rgba(255, 255, 255, 0.05)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive(item.path)) {
-                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.backgroundColor = "transparent";
                 }
               }}
             >
@@ -74,18 +94,24 @@ export function Sidebar() {
                 onClick={() => navigate(item.path)}
                 className="w-full justify-start transition-all duration-200 rounded-xl"
                 style={
-                  isActive(item.path) 
-                    ? { color: 'var(--accent-color, #3b82f6)', backgroundColor: 'rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)', backdropFilter: 'blur(8px)' } 
-                    : { color: '#d1d5db' }
+                  isActive(item.path)
+                    ? {
+                        color: "var(--accent-color, #3b82f6)",
+                        backgroundColor:
+                          "rgba(var(--accent-color-rgb, 59, 130, 246), 0.15)",
+                        backdropFilter: "blur(8px)",
+                      }
+                    : { color: "#d1d5db" }
                 }
                 onMouseEnter={(e) => {
                   if (!isActive(item.path)) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(255, 255, 255, 0.05)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive(item.path)) {
-                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.backgroundColor = "transparent";
                   }
                 }}
               >
@@ -97,5 +123,5 @@ export function Sidebar() {
         </div>
       </nav>
     </div>
-  )
+  );
 }

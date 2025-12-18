@@ -16,3 +16,81 @@ services:
     volumes:
       - "navidrome_data:/data"
       #- "/mnt/music:/music:ro"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4533/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# =============================================================================
+# OPTIONAL: AudioMuse-AI - Music Recommendation Engine
+# Uncomment the services below to enable AI-powered playlist generation
+# See contrib/audiomuse-ai/README.md for configuration details
+# =============================================================================
+
+#   audiomuse-redis:
+#     image: redis:7-alpine
+#     container_name: audiomuse-redis
+#     volumes:
+#       - audiomuse-redis-data:/data
+#     restart: unless-stopped
+#
+#   audiomuse-postgres:
+#     image: postgres:15-alpine
+#     container_name: audiomuse-postgres
+#     environment:
+#       POSTGRES_USER: audiomuse
+#       POSTGRES_PASSWORD: audiomusepassword
+#       POSTGRES_DB: audiomusedb
+#     volumes:
+#       - audiomuse-postgres-data:/var/lib/postgresql/data
+#     restart: unless-stopped
+#
+#   audiomuse-ai-flask:
+#     image: ghcr.io/neptunehub/audiomuse-ai:latest
+#     container_name: audiomuse-ai-flask
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       SERVICE_TYPE: "flask"
+#       MEDIASERVER_TYPE: "navidrome"
+#       NAVIDROME_URL: "http://navidrome:4533"
+#       NAVIDROME_USER: "admin"
+#       NAVIDROME_PASSWORD: "your_password"
+#       POSTGRES_USER: audiomuse
+#       POSTGRES_PASSWORD: audiomusepassword
+#       POSTGRES_DB: audiomusedb
+#       POSTGRES_HOST: "audiomuse-postgres"
+#       POSTGRES_PORT: "5432"
+#       REDIS_URL: "redis://audiomuse-redis:6379/0"
+#       AI_MODEL_PROVIDER: "NONE"
+#     depends_on:
+#       - navidrome
+#       - audiomuse-redis
+#       - audiomuse-postgres
+#     restart: unless-stopped
+#
+#   audiomuse-ai-worker:
+#     image: ghcr.io/neptunehub/audiomuse-ai:latest
+#     container_name: audiomuse-ai-worker
+#     environment:
+#       SERVICE_TYPE: "worker"
+#       MEDIASERVER_TYPE: "navidrome"
+#       NAVIDROME_URL: "http://navidrome:4533"
+#       NAVIDROME_USER: "admin"
+#       NAVIDROME_PASSWORD: "your_password"
+#       POSTGRES_USER: audiomuse
+#       POSTGRES_PASSWORD: audiomusepassword
+#       POSTGRES_DB: audiomusedb
+#       POSTGRES_HOST: "audiomuse-postgres"
+#       POSTGRES_PORT: "5432"
+#       REDIS_URL: "redis://audiomuse-redis:6379/0"
+#       AI_MODEL_PROVIDER: "NONE"
+#     depends_on:
+#       - audiomuse-redis
+#       - audiomuse-postgres
+#     restart: unless-stopped
+#
+# volumes:
+#   audiomuse-redis-data:
+#   audiomuse-postgres-data:

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueue } from '@/contexts/QueueContext'
 import { Button } from '@/components/ui/button'
 import { Trash2, X, ArrowUp, ArrowDown, Maximize2, Minimize2, GripVertical, Play, Music2 } from 'lucide-react'
@@ -29,20 +30,29 @@ export function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => v
   // Calculate total remaining time
   const totalRemainingTime = upcomingTracks.reduce((acc, t) => acc + (t.duration || 0), 0)
   
-  // Prefer AnimatePresence and motion for nicer entry/exit animations
-  return (
+  // Use portal to render at document body level for proper full-screen positioning
+  return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div
-          className={fullscreen 
-            ? "fixed inset-0 bg-gradient-to-br from-black via-gray-900 to-black z-50 overflow-hidden" 
-            : "fixed right-0 top-0 h-full w-96 bg-black/80 backdrop-blur-2xl border-l border-white/10 z-40 shadow-2xl"
-          }
-          initial={fullscreen ? { opacity: 0 } : { x: 60, opacity: 0 }}
-          animate={fullscreen ? { opacity: 1 } : { x: 0, opacity: 1 }}
-          exit={fullscreen ? { opacity: 0 } : { x: 60, opacity: 0 }}
-          transition={{ duration: 0.25 }}
-        >
+        <>
+          {/* Backdrop overlay */}
+          <motion.div
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className={fullscreen 
+              ? "fixed inset-0 bg-gradient-to-br from-black via-gray-900 to-black z-50 overflow-hidden" 
+              : "fixed right-0 top-0 bottom-0 w-96 bg-black/90 backdrop-blur-2xl border-l border-white/10 z-50 shadow-2xl"
+            }
+            initial={fullscreen ? { opacity: 0 } : { x: 60, opacity: 0 }}
+            animate={fullscreen ? { opacity: 1 } : { x: 0, opacity: 1 }}
+            exit={fullscreen ? { opacity: 0 } : { x: 60, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
           {/* Header */}
           <div className={`p-6 flex items-center justify-between border-b border-white/10 ${fullscreen ? 'bg-gradient-to-b from-black/50 to-transparent' : ''}`}>
             <div className="flex items-center gap-3">
@@ -242,7 +252,9 @@ export function QueueDrawer({ open, onClose }: { open: boolean; onClose: () => v
             )}
           </div>
         </motion.div>
+        </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }

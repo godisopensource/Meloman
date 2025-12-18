@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react"
-import { Calendar, MapPin, Search, RefreshCw, Ticket, Clock, AlertCircle } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Calendar, MapPin, Search, RefreshCw, Ticket, Clock, AlertCircle, Settings } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { subsonicApi } from "@/lib/subsonic-api"
@@ -12,6 +12,7 @@ interface Concert {
   venue: string
   city: string
   date: string
+  rawDate?: string
   time?: string
   ticketUrl?: string
   imageUrl?: string
@@ -46,52 +47,154 @@ const saveConcertConfig = (config: ConcertConfig) => {
   localStorage.setItem('concert_config', JSON.stringify(config))
 }
 
-// Bandsintown API - free tier available
-const BANDSINTOWN_APP_ID = 'meloman_music_player'
-
-async function searchArtistConcerts(artistName: string, city?: string): Promise<Concert[]> {
+// Get user's city from IP geolocation
+async function getCityFromIP(): Promise<{ city: string; country: string } | null> {
   try {
-    const encodedArtist = encodeURIComponent(artistName)
-    const response = await fetch(
-      `https://rest.bandsintown.com/artists/${encodedArtist}/events?app_id=${BANDSINTOWN_APP_ID}`,
-      { headers: { 'Accept': 'application/json' } }
-    )
+    // Use ip-api.com (free, no API key needed, 45 requests/minute)
+    const response = await fetch('http://ip-api.com/json/?fields=city,country,countryCode')
+    if (!response.ok) return null
+    const data = await response.json()
+    if (data.city && data.countryCode) {
+      console.log(`[Concerts] Detected location from IP: ${data.city}, ${data.countryCode}`)
+      return { city: data.city, country: data.countryCode }
+    }
+    return null
+  } catch (err) {
+    console.warn('[Concerts] Failed to get location from IP:', err)
+    return null
+  }
+}
+
+// Ticketmaster Discovery API - Free tier: 5000 calls/day
+// Get your free API key at: https://developer.ticketmaster.com/
+const TICKETMASTER_API_KEY = localStorage.getItem('ticketmaster_api_key') || ''
+
+// Per-artist cache to avoid redundant API calls
+const artistConcertCache = new Map<string, { timestamp: number; concerts: Concert[] }>()
+const ARTIST_CACHE_DURATION = 6 * 60 * 60 * 1000 // 6 hours
+
+async function searchArtistConcerts(artistName: string, _city?: string, countryCode?: string): Promise<Concert[]> {
+  if (!TICKETMASTER_API_KEY) {
+    console.warn('[Concerts] No Ticketmaster API key configured')
+    return []
+  }
+  
+  // Check cache first
+  const cacheKey = `${artistName.toLowerCase()}_${countryCode || 'all'}`
+  const cached = artistConcertCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < ARTIST_CACHE_DURATION) {
+    console.log(`[Concerts] Using cached data for "${artistName}" (${cached.concerts.length} concerts)`)
+    return cached.concerts
+  }
+  
+  console.log(`[Concerts] Searching concerts for: "${artistName}"`)
+  try {
+    // Search without city filter - we'll filter results locally
+    // This gives us more results and avoids missing concerts due to city name variations
+    const searchParams = new URLSearchParams({
+      apikey: TICKETMASTER_API_KEY,
+      keyword: artistName,
+      classificationName: 'music',
+      size: '100', // Get more results
+      sort: 'date,asc',
+    })
+    
+    // Only add country code if specified (not city - too restrictive)
+    if (countryCode) {
+      searchParams.set('countryCode', countryCode)
+    }
+    
+    const url = `https://app.ticketmaster.com/discovery/v2/events.json?${searchParams.toString()}`
+    console.log(`[Concerts] API URL: ${url.replace(TICKETMASTER_API_KEY, 'REDACTED')}`)
+    
+    const response = await fetch(url)
+    
+    console.log(`[Concerts] Response status for "${artistName}": ${response.status}`)
     
     if (!response.ok) {
+      if (response.status === 401) {
+        console.error('[Concerts] Invalid Ticketmaster API key')
+      } else if (response.status === 429) {
+        console.warn('[Concerts] Ticketmaster rate limit reached')
+      }
       return []
     }
     
-    const events = await response.json()
+    const data = await response.json()
     
-    if (!Array.isArray(events)) {
+    if (!data._embedded?.events) {
+      console.log(`[Concerts] No events found for "${artistName}" - API returned no _embedded.events`)
+      console.log(`[Concerts] Full response:`, JSON.stringify(data).substring(0, 500))
+      // Cache empty result too to avoid repeated calls
+      artistConcertCache.set(cacheKey, { timestamp: Date.now(), concerts: [] })
       return []
     }
     
-    return events.map((event: any) => ({
-      id: event.id || `${artistName}-${event.datetime}`,
-      artistName,
-      eventName: event.title || `${artistName} Live`,
-      venue: event.venue?.name || 'TBA',
-      city: `${event.venue?.city || ''}, ${event.venue?.region || ''} ${event.venue?.country || ''}`.trim(),
-      date: new Date(event.datetime).toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
-      }),
-      time: event.datetime ? new Date(event.datetime).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      }) : undefined,
-      ticketUrl: event.url,
-      imageUrl: event.artist?.image_url
-    })).filter((concert: Concert) => {
-      if (!city) return true
-      const cityLower = city.toLowerCase()
-      return concert.city.toLowerCase().includes(cityLower)
+    const events = data._embedded.events
+    console.log(`[Concerts] Found ${events.length} events for "${artistName}"`)
+    
+    // Strict filtering: artist name must match exactly or be very close
+    // This prevents "Archive" from matching "Sudan Archives"
+    const artistLower = artistName.toLowerCase().trim()
+    const artistWords = artistLower.split(/\s+/)
+    
+    const matchingEvents = events.filter((event: any) => {
+      const attractions = event._embedded?.attractions || []
+      return attractions.some((a: any) => {
+        const attractionName = a.name.toLowerCase().trim()
+        const attractionWords = attractionName.split(/\s+/)
+        
+        // Exact match
+        if (attractionName === artistLower) return true
+        
+        // Match with common suffixes/prefixes (e.g., "Archive" matches "Archive UK")
+        if (attractionName.startsWith(artistLower + ' ') || 
+            attractionName.endsWith(' ' + artistLower)) return true
+        
+        // For single-word artists, require exact word match (not substring)
+        if (artistWords.length === 1) {
+          return attractionWords.includes(artistLower)
+        }
+        
+        // For multi-word artists, check if all words are present
+        return artistWords.every(word => attractionWords.includes(word))
+      })
     })
+    
+    console.log(`[Concerts] ${matchingEvents.length} events match artist "${artistName}" (strict filter)`)
+    
+    const concerts = matchingEvents.map((event: any) => {
+      const venue = event._embedded?.venues?.[0]
+      const attraction = event._embedded?.attractions?.[0]
+      const dateInfo = event.dates?.start
+      
+      return {
+        id: event.id,
+        artistName: attraction?.name || artistName,
+        eventName: event.name,
+        venue: venue?.name || 'TBA',
+        city: [venue?.city?.name, venue?.state?.stateCode, venue?.country?.countryCode]
+          .filter(Boolean).join(', '),
+        date: dateInfo?.localDate ? new Date(dateInfo.localDate).toLocaleDateString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : 'TBA',
+        rawDate: dateInfo?.localDate || '',
+        time: dateInfo?.localTime?.substring(0, 5),
+        ticketUrl: event.url,
+        imageUrl: event.images?.find((img: any) => img.ratio === '16_9')?.url || 
+                  event.images?.[0]?.url
+      }
+    })
+    
+    // Cache the results
+    artistConcertCache.set(cacheKey, { timestamp: Date.now(), concerts })
+    console.log(`[Concerts] Cached ${concerts.length} concerts for "${artistName}"`)
+    return concerts
   } catch (err) {
-    console.error(`[Concerts] Failed to fetch concerts for ${artistName}:`, err)
+    console.error(`[Concerts] Failed to fetch concerts for "${artistName}":`, err)
     return []
   }
 }
@@ -101,6 +204,7 @@ export function ConcertsView() {
   const [showConfig, setShowConfig] = useState(false)
   const [configCity, setConfigCity] = useState(config.city)
   const [configCountry, setConfigCountry] = useState(config.country)
+  const [configApiKey, setConfigApiKey] = useState(localStorage.getItem('ticketmaster_api_key') || '')
   const [loading, setLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, artist: '' })
   const [artists, setArtists] = useState<Artist[]>([])
@@ -108,44 +212,100 @@ export function ConcertsView() {
   const [filteredConcerts, setFilteredConcerts] = useState<Concert[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [hasApiKey, setHasApiKey] = useState(!!localStorage.getItem('ticketmaster_api_key'))
+  
+  // Prevent double initialization in React Strict Mode
+  const initRef = useRef(false)
+  const fetchingRef = useRef(false)
 
+  // Load artists on mount and auto-fetch concerts
   useEffect(() => {
-    loadArtists()
+    // Skip if already initialized (React Strict Mode calls useEffect twice)
+    if (initRef.current) {
+      console.log('[Concerts] Skipping duplicate initialization')
+      return
+    }
+    initRef.current = true
+    
+    const init = async () => {
+      console.log('[Concerts] Initializing...')
+      
+      // Auto-detect city from IP if not configured
+      const currentConfig = getConcertConfig()
+      if (!currentConfig.city) {
+        const location = await getCityFromIP()
+        if (location) {
+          const newConfig = { ...currentConfig, city: location.city, country: location.country }
+          setConfig(newConfig)
+          setConfigCity(location.city)
+          setConfigCountry(location.country)
+          saveConcertConfig(newConfig)
+          console.log(`[Concerts] Auto-configured location: ${location.city}, ${location.country}`)
+        }
+      }
+      
+      const loadedArtists = await loadArtists()
+      // Only auto-fetch if we have an API key and not already fetching
+      const apiKey = localStorage.getItem('ticketmaster_api_key')
+      if (loadedArtists && loadedArtists.length > 0 && apiKey && !fetchingRef.current) {
+        console.log('[Concerts] Auto-fetching concerts for', loadedArtists.length, 'artists')
+        fetchingRef.current = true
+        // Auto-fetch concerts on first load
+        fetchAllConcerts(loadedArtists)
+      } else if (!apiKey) {
+        console.log('[Concerts] No API key configured, skipping auto-fetch')
+      }
+    }
+    init()
   }, [])
 
+  // Filter concerts by search query AND configured city
   useEffect(() => {
+    let filtered = concerts
+    
+    // Apply city filter from config if set
+    if (config.city) {
+      const cityLower = config.city.toLowerCase()
+      filtered = filtered.filter(c => 
+        c.city.toLowerCase().includes(cityLower)
+      )
+    }
+    
+    // Apply search query filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      setFilteredConcerts(concerts.filter(c => 
+      filtered = filtered.filter(c => 
         c.artistName.toLowerCase().includes(query) ||
         c.venue.toLowerCase().includes(query) ||
         c.city.toLowerCase().includes(query)
-      ))
-    } else {
-      setFilteredConcerts(concerts)
+      )
     }
-  }, [searchQuery, concerts])
+    
+    setFilteredConcerts(filtered)
+  }, [searchQuery, concerts, config.city])
 
   const loadArtists = async () => {
     try {
       const response = await subsonicApi.getArtists()
-      // The response is an array of index objects with artist arrays
+      // The response is now a flat array of artists
       if (Array.isArray(response)) {
-        const allArtists: Artist[] = []
-        response.forEach((index: any) => {
-          if (index.artist && Array.isArray(index.artist)) {
-            allArtists.push(...index.artist)
-          }
-        })
-        setArtists(allArtists)
+        console.log('[Concerts] Loaded artists:', response.length, response.map((a: any) => a.name))
+        setArtists(response)
+        return response
       }
+      return []
     } catch (err) {
       console.error('[Concerts] Failed to load artists:', err)
+      return []
     }
   }
 
-  const fetchAllConcerts = useCallback(async () => {
-    if (artists.length === 0) {
+  const fetchAllConcerts = useCallback(async (artistsList?: Artist[]) => {
+    const artistsToUse = artistsList || artists
+    console.log('[Concerts] fetchAllConcerts called with', artistsToUse.length, 'artists')
+    
+    if (artistsToUse.length === 0) {
+      console.warn('[Concerts] No artists to search!')
       setError('No artists in your library. Add some music first!')
       return
     }
@@ -153,17 +313,19 @@ export function ConcertsView() {
     setLoading(true)
     setError(null)
     setConcerts([])
-    setLoadingProgress({ current: 0, total: artists.length, artist: '' })
+    setLoadingProgress({ current: 0, total: artistsToUse.length, artist: '' })
 
     const allConcerts: Concert[] = []
-    const batchSize = 5
+    const batchSize = 3 // Reduce batch size to avoid rate limiting
     
-    for (let i = 0; i < artists.length; i += batchSize) {
-      const batch = artists.slice(i, i + batchSize)
+    for (let i = 0; i < artistsToUse.length; i += batchSize) {
+      const batch = artistsToUse.slice(i, i + batchSize)
+      
+      console.log(`[Concerts] Processing batch ${i / batchSize + 1}: ${batch.map(a => a.name).join(', ')}`)
       
       setLoadingProgress({ 
-        current: Math.min(i + batchSize, artists.length), 
-        total: artists.length, 
+        current: Math.min(i + batchSize, artistsToUse.length), 
+        total: artistsToUse.length, 
         artist: batch[0]?.name || '' 
       })
 
@@ -171,16 +333,21 @@ export function ConcertsView() {
         batch.map(artist => searchArtistConcerts(artist.name, config.city))
       )
       
+      console.log(`[Concerts] Batch results:`, batchResults.map((r, idx) => `${batch[idx]?.name}: ${r.length} concerts`))
+      
       batchResults.forEach(concertBatch => {
         allConcerts.push(...concertBatch)
       })
 
-      if (i + batchSize < artists.length) {
-        await new Promise(resolve => setTimeout(resolve, 200))
+      // Add delay between batches to avoid rate limiting
+      if (i + batchSize < artistsToUse.length) {
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
     }
 
-    allConcerts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    console.log(`[Concerts] Total concerts found: ${allConcerts.length}`)
+    
+    allConcerts.sort((a, b) => new Date(a.rawDate || a.date).getTime() - new Date(b.rawDate || b.date).getTime())
     
     setConcerts(allConcerts)
     setFilteredConcerts(allConcerts)
@@ -197,7 +364,16 @@ export function ConcertsView() {
     const newConfig = { ...config, city: configCity, country: configCountry }
     setConfig(newConfig)
     saveConcertConfig(newConfig)
+    // Save API key
+    if (configApiKey) {
+      localStorage.setItem('ticketmaster_api_key', configApiKey)
+      setHasApiKey(true)
+    }
     setShowConfig(false)
+    // Reload page to pick up new API key
+    if (configApiKey && !hasApiKey) {
+      window.location.reload()
+    }
   }
 
   const groupConcertsByMonth = (concertList: Concert[]) => {
@@ -241,13 +417,13 @@ export function ConcertsView() {
             <Button
               variant="outline"
               onClick={() => setShowConfig(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 border-gray-600 text-gray-300 hover:text-white hover:border-gray-400"
             >
               <MapPin className="h-4 w-4" />
               {config.city || 'Set Location'}
             </Button>
             <Button
-              onClick={fetchAllConcerts}
+              onClick={() => fetchAllConcerts()}
               disabled={loading || artists.length === 0}
               style={{ backgroundColor: 'var(--accent-color)' }}
               className="flex items-center gap-2"
@@ -258,7 +434,7 @@ export function ConcertsView() {
           </div>
         </motion.div>
 
-        {/* Location Config Modal */}
+        {/* Settings Config Modal */}
         {showConfig && (
           <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -267,13 +443,45 @@ export function ConcertsView() {
             onClick={() => setShowConfig(false)}
           >
             <motion.div
-              className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+              className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-bold mb-4">Set Your Location</h2>
-              <p className="text-gray-400 mb-6">
+              <h2 className="text-2xl font-bold mb-4">Concert Settings</h2>
+              
+              {/* API Key Section */}
+              <div className="mb-6 p-4 rounded-xl bg-orange-500/10 border border-orange-500/30">
+                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                  <span className="text-orange-400">🎫</span>
+                  Ticketmaster API Key
+                </h3>
+                <p className="text-sm text-gray-400 mb-3">
+                  Get your free API key at{' '}
+                  <a 
+                    href="https://developer.ticketmaster.com/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-orange-400 hover:underline"
+                  >
+                    developer.ticketmaster.com
+                  </a>
+                </p>
+                <input
+                  type="password"
+                  value={configApiKey}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfigApiKey(e.target.value)}
+                  placeholder="Enter your Ticketmaster API key"
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                {hasApiKey && (
+                  <p className="text-sm text-green-400 mt-2">✓ API key configured</p>
+                )}
+              </div>
+
+              {/* Location Section */}
+              <h3 className="text-lg font-semibold mb-3">Location Filter</h3>
+              <p className="text-gray-400 mb-4 text-sm">
                 Filter concerts by location to find shows near you.
               </p>
               
@@ -284,24 +492,24 @@ export function ConcertsView() {
                     type="text"
                     value={configCity}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfigCity(e.target.value)}
-                    placeholder="e.g., New York, Los Angeles, London"
+                    placeholder="e.g., Paris, New York, London"
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Country (optional)</label>
+                  <label className="block text-sm font-medium mb-2">Country Code (optional)</label>
                   <input
                     type="text"
                     value={configCountry}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfigCountry(e.target.value)}
-                    placeholder="e.g., USA, UK, Germany"
+                    placeholder="e.g., FR, US, GB"
                     className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]"
                   />
                 </div>
 
                 <p className="text-sm text-gray-500">
-                  Leave empty to show all concerts worldwide.
+                  Leave location empty to show all concerts worldwide.
                 </p>
               </div>
 
@@ -313,10 +521,38 @@ export function ConcertsView() {
                   onClick={handleSaveConfig}
                   style={{ backgroundColor: 'var(--accent-color)' }}
                 >
-                  Save Location
+                  Save Settings
                 </Button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+
+        {/* Active City Filter Badge */}
+        {config.city && concerts.length > 0 && !loading && (
+          <motion.div
+            className="mb-4 flex items-center gap-2"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <span className="px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 text-sm flex items-center gap-2">
+              <MapPin className="h-3 w-3" />
+              Filtering by: {config.city}
+              <button 
+                onClick={() => {
+                  const newConfig = { ...config, city: '' }
+                  setConfig(newConfig)
+                  saveConcertConfig(newConfig)
+                  setConfigCity('')
+                }}
+                className="ml-1 hover:text-white"
+              >
+                ✕
+              </button>
+            </span>
+            <span className="text-sm text-gray-500">
+              Showing {filteredConcerts.length} of {concerts.length} concerts
+            </span>
           </motion.div>
         )}
 
@@ -333,12 +569,16 @@ export function ConcertsView() {
               <div className="text-sm text-gray-400">Artists in Library</div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-3xl font-bold text-orange-400">{concerts.length}</div>
-              <div className="text-sm text-gray-400">Upcoming Concerts</div>
+              <div className="text-3xl font-bold text-orange-400">
+                {config.city ? `${filteredConcerts.length}/${concerts.length}` : concerts.length}
+              </div>
+              <div className="text-sm text-gray-400">
+                {config.city ? `Concerts in ${config.city}` : 'Upcoming Concerts'}
+              </div>
             </div>
             <div className="p-4 rounded-xl bg-white/5 border border-white/10">
               <div className="text-3xl font-bold text-green-400">
-                {new Set(concerts.map(c => c.artistName)).size}
+                {new Set(filteredConcerts.map(c => c.artistName)).size}
               </div>
               <div className="text-sm text-gray-400">Artists Touring</div>
             </div>
@@ -483,8 +723,40 @@ export function ConcertsView() {
           </motion.div>
         )}
 
-        {/* Empty State - Initial */}
-        {!loading && concerts.length === 0 && !error && (
+        {/* Empty State - No API Key */}
+        {!loading && !hasApiKey && (
+          <motion.div
+            className="text-center py-20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="text-6xl mb-6">🎫</div>
+            <h2 className="text-2xl font-bold mb-2">API Key Required</h2>
+            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+              To search for concerts, you need a free Ticketmaster API key.
+              Get yours at{' '}
+              <a 
+                href="https://developer.ticketmaster.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-orange-400 hover:underline"
+              >
+                developer.ticketmaster.com
+              </a>
+            </p>
+            <Button
+              onClick={() => setShowConfig(true)}
+              style={{ backgroundColor: 'var(--accent-color)' }}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Configure API Key
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Empty State - Initial (with API key) */}
+        {!loading && hasApiKey && concerts.length === 0 && !error && (
           <motion.div
             className="text-center py-20"
             initial={{ opacity: 0 }}
@@ -502,10 +774,10 @@ export function ConcertsView() {
                 className="gap-2"
               >
                 <MapPin className="h-4 w-4" />
-                Set Location First
+                Set Location
               </Button>
               <Button
-                onClick={fetchAllConcerts}
+                onClick={() => fetchAllConcerts()}
                 disabled={artists.length === 0}
                 style={{ backgroundColor: 'var(--accent-color)' }}
                 className="gap-2"
